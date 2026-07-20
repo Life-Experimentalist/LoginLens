@@ -1,0 +1,55 @@
+name: Build and Release LoginLens
+
+on:
+  push:
+    tags:
+      - 'v*.*.*' # Trigger on version tags
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - name: Install Dependencies
+        run: pnpm install
+
+      - name: Build Chrome MV3
+        run: pnpm run build --target=chrome-mv3
+
+      - name: Build Firefox MV3
+        run: pnpm run build --target=firefox-mv3
+
+      - name: Build Edge MV3
+        run: pnpm run build --target=edge-mv3
+
+      - name: Zip Artifacts
+        run: |
+          mkdir -p dist/releases
+          cd build
+          zip -r ../dist/releases/loginlens-chrome.zip chrome-mv3-prod
+          zip -r ../dist/releases/loginlens-firefox.zip firefox-mv3-prod
+          zip -r ../dist/releases/loginlens-edge.zip edge-mv3-prod
+          cd ..
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/releases/*.zip
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
