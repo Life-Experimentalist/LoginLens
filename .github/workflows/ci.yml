@@ -36,6 +36,14 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
 
+      # The lock file is written by npm 11+. The npm 10 that ships with Node 22
+      # places some transitive dependencies differently and rejects that lock as
+      # out of sync, so the matrix would pass on 24 and fail on 22 for a reason
+      # that has nothing to do with the code. Pinning npm makes the lock mean
+      # the same thing on every row.
+      - name: Pin npm
+        run: npm install -g npm@12
+
       - run: npm ci
 
       - name: Lint
@@ -57,6 +65,10 @@ jobs:
         with:
           node-version: 22.x
           cache: npm
+
+      # See the note in the verify job: npm 10 rejects this lock file.
+      - name: Pin npm
+        run: npm install -g npm@12
 
       - run: npm ci
 
@@ -103,6 +115,10 @@ jobs:
         with:
           node-version: 22.x
           cache: npm
+
+      # See the note in the verify job: npm 10 rejects this lock file.
+      - name: Pin npm
+        run: npm install -g npm@12
 
       - run: npm ci
 

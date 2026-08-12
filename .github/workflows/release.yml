@@ -66,6 +66,12 @@ jobs:
           node-version: 22.x
           cache: npm
 
+      # npm 10, which ships with Node 22, rejects this lock file as out of sync
+      # because it places some transitive dependencies differently. Pinning npm
+      # keeps a release build from failing for a reason unrelated to the code.
+      - name: Pin npm
+        run: npm install -g npm@12
+
       - run: npm ci
 
       # A release is the worst place to discover a broken test, and it is cheap
