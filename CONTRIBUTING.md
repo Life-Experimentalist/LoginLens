@@ -5,12 +5,19 @@ documentation corrections are all welcome.
 
 ## Development setup
 
-Requires Node.js 22 or newer, with npm 11 or newer. The Node floor comes from
-the test toolchain — jsdom and `@testing-library/jest-dom` both refuse to
-install below it — not from the extension itself, which runs in the browser.
-The npm floor is about the lock file: npm 10 places some transitive
-dependencies differently and rejects `package-lock.json` as out of sync. If you
-are on Node 22, `npm install -g npm@12` first.
+Requires Node.js 22 or newer, with npm 11 or newer. Node 24 (Active LTS) is
+what CI builds and releases with, and what you should use unless you have a
+reason not to.
+
+The Node floor comes from the test toolchain — jsdom and
+`@testing-library/jest-dom` both refuse to install below it — not from the
+extension itself, which runs in the browser.
+
+The npm floor is about the lock file. `package-lock.json` is written by npm 12,
+which nests some transitive dependencies where npm 10 hoists them; npm 10 reads
+that as out of sync and fails `npm ci` outright. npm 11 and newer install it
+correctly. Node 24 bundles npm 11, so this only bites on Node 22 — there, run
+`npm install -g npm@12` first.
 
 ```bash
 git clone https://github.com/Life-Experimentalist/LoginLens
@@ -37,7 +44,8 @@ extension:
 
 ## Before opening a pull request
 
-All three must pass; CI runs the same commands on Node 22 and 24.
+All three must pass; CI runs the same commands on Node 22, 24 and 26 — the
+Maintenance LTS, Active LTS and Current lines that `engines.node: >=22` covers.
 
 ```bash
 npm run lint

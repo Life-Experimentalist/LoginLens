@@ -29,17 +29,19 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: '22'
+          # Active LTS, matching every other workflow here.
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: 'website/package-lock.json'
 
-      # npm 10, which ships with Node 22, places some transitive dependencies
-      # differently and rejects the lock file as out of sync.
+      # website/package-lock.json is written by npm 12. Node 24 bundles npm 11,
+      # which installs it correctly; the pin keeps resolution fixed as the npm
+      # bundled with Node 24 changes over that line's lifetime.
       - name: Pin npm
         run: npm install -g npm@12
 
@@ -73,13 +75,13 @@ jobs:
           echo "prerendered pages, sitemap and CNAME all present"
 
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: './website/dist'
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

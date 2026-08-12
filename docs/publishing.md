@@ -311,10 +311,11 @@ takes days and one that takes a month:
 
 ```
 Build environment
-  Node.js 22 or newer, with npm 11 or newer. npm 10 places some transitive
-  dependencies differently and will reject package-lock.json as out of sync,
-  so on Node 22 run `npm install -g npm@12` first. Windows and Linux both
-  work; CI builds on ubuntu-latest.
+  Node.js 24 (Active LTS) with npm 12 is what produced the uploaded package;
+  CI builds it on ubuntu-latest. Node.js 22 or newer works, but npm 11 or
+  newer is required: npm 10 places some transitive dependencies differently
+  and will reject package-lock.json as out of sync, so on Node 22 run
+  `npm install -g npm@12` first. Windows and Linux both work.
 
 To reproduce the submitted package from the attached source archive:
   npm ci

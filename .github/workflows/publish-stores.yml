@@ -38,17 +38,21 @@ jobs:
     name: Build packages
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22.x
+          # Active LTS, matching release.yml — the package uploaded to a store
+          # should come off the same toolchain as the one attached to the
+          # GitHub Release for that tag.
+          node-version: 24.x
           cache: npm
 
-      # npm 10, which ships with Node 22, rejects this lock file as out of sync
-      # because it places some transitive dependencies differently.
+      # Same pin as release.yml, for the same reason: the package uploaded to a
+      # store should resolve its dependency tree identically to the one already
+      # attached to the GitHub Release for this tag.
       - name: Pin npm
         run: npm install -g npm@12
 
@@ -74,7 +78,7 @@ jobs:
       - name: Source archive
         run: git archive --format=zip --prefix=loginlens/ -o loginlens-source.zip HEAD
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: packages
           path: '*.zip'
@@ -86,7 +90,7 @@ jobs:
     needs: build
     if: inputs.chrome
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: packages
 
@@ -134,7 +138,7 @@ jobs:
     needs: build
     if: inputs.edge
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: packages
 
@@ -188,13 +192,19 @@ jobs:
     needs: build
     if: inputs.firefox
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: packages
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22.x
+          node-version: 24.x
+          # This job downloads the built packages and never checks the repo
+          # out, so there is no manifest or lock file to key a cache on.
+          # setup-node v6+ can start caching on its own once package.json
+          # gains a `packageManager` field; saying no here keeps that from
+          # turning into a cache-miss warning on a job with nothing to cache.
+          package-manager-cache: false
 
       - name: Sign and submit
         env:
