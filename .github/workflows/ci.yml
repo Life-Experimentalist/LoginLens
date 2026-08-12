@@ -22,7 +22,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: ['18.x', '20.x', '22.x']
+        # 22 is the floor the test toolchain actually imposes: jsdom 30,
+        # @testing-library/jest-dom 7 and undici 8 all refuse to install below
+        # it. Listing 18 and 20 here tested a configuration nobody can install.
+        node-version: ['22.x', '24.x']
 
     steps:
       - uses: actions/checkout@v4
@@ -52,7 +55,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20.x
+          node-version: 22.x
           cache: npm
 
       - run: npm ci
@@ -98,7 +101,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20.x
+          node-version: 22.x
           cache: npm
 
       - run: npm ci

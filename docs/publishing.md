@@ -311,7 +311,7 @@ takes days and one that takes a month:
 
 ```
 Build environment
-  Node.js 20, npm 10. Windows and Linux both work; CI builds on ubuntu-latest.
+  Node.js 22, npm 10. Windows and Linux both work; CI builds on ubuntu-latest.
 
 To reproduce the submitted package from the attached source archive:
   npm ci
