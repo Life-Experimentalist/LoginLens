@@ -35,6 +35,7 @@
     "build:brave": "cross-env NODE_OPTIONS=--no-deprecation plasmo build --target=brave-mv3",
     "build:safari": "cross-env NODE_OPTIONS=--no-deprecation plasmo build --target=safari-mv3",
     "package": "cross-env NODE_OPTIONS=--no-deprecation plasmo package",
+    "assets": "node scripts/build-ui-assets.mjs",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
     "test": "vitest run",
@@ -107,6 +108,6 @@
     "esbuild": "^0.25.0",
     "content-security-policy-parser": "^0.6.0",
     "msgpackr": "^1.10.1",
-    "sharp": "^0.33.0"
+    "sharp": "^0.35.0"
   }
 }

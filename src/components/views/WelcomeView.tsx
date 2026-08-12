@@ -19,7 +19,7 @@ import {
 } from 'lucide-react'
 import { CSVImportModal } from '../ui/CSVImportModal'
 import type { DomainEntry } from '../../core/storage/schema'
-import iconStarrySkyUrl from 'url:~/assets/icon_starry_sky.png'
+import iconStarrySkyUrl from 'url:~/assets/ui/icon-starry-sky.png'
 
 interface WelcomeStep {
   id: string
