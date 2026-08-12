@@ -311,7 +311,10 @@ takes days and one that takes a month:
 
 ```
 Build environment
-  Node.js 22, npm 10. Windows and Linux both work; CI builds on ubuntu-latest.
+  Node.js 22 or newer, with npm 11 or newer. npm 10 places some transitive
+  dependencies differently and will reject package-lock.json as out of sync,
+  so on Node 22 run `npm install -g npm@12` first. Windows and Linux both
+  work; CI builds on ubuntu-latest.
 
 To reproduce the submitted package from the attached source archive:
   npm ci
