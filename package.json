@@ -59,7 +59,7 @@
     "@plasmohq/storage": "^1.15.0",
     "clsx": "^2.1.1",
     "framer-motion": "^11.2.10",
-    "lucide-react": "^0.395.0",
+    "lucide-react": "^1.27.0",
     "lz-string": "^1.5.0",
     "next-themes": "^0.3.0",
     "plasmo": "0.90.5",
