@@ -65,7 +65,7 @@
     "plasmo": "0.90.5",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "svgo": "^3.3.4",
+    "svgo": "^4.0.2",
     "tailwind-merge": "^2.3.0"
   },
   "devDependencies": {
