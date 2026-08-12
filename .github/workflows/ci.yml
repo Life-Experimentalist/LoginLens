@@ -92,6 +92,43 @@ jobs:
           path: coverage/
           retention-days: 14
 
+  # website/ has its own package.json, its own lock file and its own build, and
+  # until this job existed nothing verified any of it before merge: the deploy
+  # workflow only runs on pushes to main, so a website change that failed to
+  # build was discovered by main going red. Dependabot raises website
+  # dependency PRs on its own schedule, which made that gap a routine event
+  # rather than a rare one.
+  website:
+    name: Build website
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.x
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      # See the note in the verify job.
+      - name: Pin npm
+        run: npm install -g npm@12
+
+      - run: npm ci
+        working-directory: ./website
+
+      - name: Build
+        run: npm run build
+        working-directory: ./website
+        # No VITE_BASE_URL, matching deploy-website.yml: the site is served
+        # from the root of a custom domain, so a prefixed base would 404 every
+        # asset — and it would do so only in production, where nobody building
+        # locally would see it.
+
+      - name: Assert the site was prerendered
+        run: bash scripts/assert-build.sh
+        working-directory: ./website
+
   build:
     name: Build (${{ matrix.target }})
     runs-on: ubuntu-latest

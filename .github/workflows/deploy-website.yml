@@ -56,23 +56,11 @@ jobs:
         # domain loginlens.vkrishna04.me, so the site is served from the root.
         # Building with base=/LoginLens/ there would 404 every asset.
 
+      # Same script CI runs on pull requests. Here it guards the exact tree
+      # about to be published, rather than a tree that merely resembles it.
       - name: Assert the site was prerendered
         working-directory: ./website
-        run: |
-          # A regression that turns the build back into a plain SPA is
-          # invisible in the browser and total for anything that does not run
-          # JavaScript, so it gets asserted rather than eyeballed.
-          for page in index docs/index decrypt/index uninstall/index 404; do
-            file="dist/${page}.html"
-            test -f "$file" || { echo "::error::$file was not generated"; exit 1; }
-            if grep -q '<div id="root"></div>' "$file"; then
-              echo "::error::$file shipped an empty root — prerender did not run"
-              exit 1
-            fi
-          done
-          test -f dist/sitemap.xml || { echo "::error::sitemap.xml missing"; exit 1; }
-          test -f dist/CNAME || { echo "::error::CNAME missing — Pages would drop the custom domain"; exit 1; }
-          echo "prerendered pages, sitemap and CNAME all present"
+        run: bash scripts/assert-build.sh
 
       - name: Setup Pages
         uses: actions/configure-pages@v6
