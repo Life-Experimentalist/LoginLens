@@ -1,50 +1,132 @@
-import React, { useState } from 'react';
-import { Home, LayoutDashboard, BarChart2, Settings, ChevronLeft, ChevronRight, Key, KeyRound, Globe, Layers, Database } from 'lucide-react';
-import iconUrl from "url:~/assets/icon.png";
-import { useStorage } from '@plasmohq/storage/hook';
-import { extensionStorage } from '../../core/storage/config';
-import type { DomainEntry, GlobalOAuthAccount } from '../../core/storage/schema';
+import React, { useState } from 'react'
+import {
+  Home,
+  LayoutDashboard,
+  BarChart2,
+  Settings,
+  ChevronLeft,
+  ChevronRight,
+  Key,
+  Shield,
+  KeyRound,
+  Globe,
+  Database,
+  ShieldAlert
+} from 'lucide-react'
+import iconUrl from 'url:~/assets/icon.png'
+import { useStorage } from '@plasmohq/storage/hook'
+import { extensionStorage } from '../../core/storage/config'
+import type { DomainEntry, GlobalOAuthAccount } from '../../core/storage/schema'
 
-export type ViewType = 'at-a-glance' | 'dashboard' | 'passwords' | 'oauth' | 'api-keys' | 'stats' | 'settings';
+export type ViewType =
+  | 'at-a-glance'
+  | 'dashboard'
+  | 'passwords'
+  | 'oauth'
+  | 'mfa'
+  | 'api-keys'
+  | 'stats'
+  | 'settings'
+  | 'security-review'
 
 interface SidebarProps {
-  activeView: ViewType;
-  setActiveView: (view: ViewType) => void;
+  activeView: ViewType
+  setActiveView: (view: ViewType) => void
 }
 
 const navSections = [
   {
     label: null,
     items: [
-      { id: 'at-a-glance', icon: Home, label: 'At a Glance', color: 'text-primary' },
-      { id: 'stats', icon: BarChart2, label: 'Statistics', color: 'text-blue-400' },
-    ],
+      {
+        id: 'at-a-glance',
+        icon: Home,
+        label: 'At a Glance',
+        color: 'text-primary'
+      },
+      {
+        id: 'security-review',
+        icon: ShieldAlert,
+        label: 'Security Review',
+        color: 'text-red-400'
+      },
+      {
+        id: 'stats',
+        icon: BarChart2,
+        label: 'Statistics',
+        color: 'text-blue-400'
+      }
+    ]
   },
   {
     label: 'Vault',
     items: [
-      { id: 'dashboard', icon: LayoutDashboard, label: 'All Entries', color: 'text-zinc-400' },
-      { id: 'passwords', icon: Key, label: 'Passwords', color: 'text-emerald-400' },
-      { id: 'oauth', icon: Globe, label: 'OAuth Registry', color: 'text-indigo-400' },
-      { id: 'api-keys', icon: KeyRound, label: 'API Keys', color: 'text-amber-400' },
-    ],
+      {
+        id: 'dashboard',
+        icon: LayoutDashboard,
+        label: 'All Entries',
+        color: 'text-zinc-400'
+      },
+      {
+        id: 'passwords',
+        icon: Key,
+        label: 'Passwords',
+        color: 'text-emerald-400'
+      },
+      {
+        id: 'oauth',
+        icon: Globe,
+        label: 'OAuth Registry',
+        color: 'text-indigo-400'
+      },
+      {
+        id: 'mfa',
+        icon: Shield,
+        label: 'MFA Registry',
+        color: 'text-green-400'
+      },
+      {
+        id: 'api-keys',
+        icon: KeyRound,
+        label: 'API Keys',
+        color: 'text-amber-400'
+      }
+    ]
   },
   {
-    label: null,
+    label: 'Config',
     items: [
-      { id: 'settings', icon: Settings, label: 'Settings', color: 'text-zinc-400' },
-    ],
-  },
-] as const;
+      {
+        id: 'settings',
+        icon: Settings,
+        label: 'Settings',
+        color: 'text-zinc-400'
+      }
+    ]
+  }
+] as const
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  
-  const [savedAccounts] = useStorage<DomainEntry[]>({ key: "saved_accounts", instance: extensionStorage }, []);
-  const [oauthRegistry] = useStorage<GlobalOAuthAccount[]>({ key: "oauth_registry", instance: extensionStorage }, []);
+export const Sidebar: React.FC<SidebarProps> = ({
+  activeView,
+  setActiveView
+}) => {
+  const [isCollapsed, setIsCollapsed] = useState(false)
 
-  const totalVaultItems = savedAccounts?.reduce((sum, d) => sum + d.accounts.length, 0) || 0;
-  const totalOAuth = oauthRegistry?.length || 0;
+  const [savedAccountsRaw] = useStorage<DomainEntry[]>(
+    { key: 'saved_accounts', instance: extensionStorage },
+    []
+  )
+  const [oauthRegistryRaw] = useStorage<GlobalOAuthAccount[]>(
+    { key: 'oauth_registry', instance: extensionStorage },
+    []
+  )
+
+  const savedAccounts = Array.isArray(savedAccountsRaw) ? savedAccountsRaw : []
+  const oauthRegistry = Array.isArray(oauthRegistryRaw) ? oauthRegistryRaw : []
+
+  const totalVaultItems =
+    savedAccounts.reduce((sum, d) => sum + d.accounts.length, 0) || 0
+  const totalOAuth = oauthRegistry.length || 0
 
   return (
     <aside
@@ -56,13 +138,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) =
       <button
         onClick={() => setIsCollapsed(!isCollapsed)}
         className="absolute -right-3 top-6 z-10 bg-card border border-border rounded-full p-1 shadow-md hover:bg-muted text-foreground transition-colors"
-        title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+        title={isCollapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
       >
         {isCollapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
       </button>
 
       {/* Header / Logo */}
-      <div className={`p-4 pb-3 flex items-center ${isCollapsed ? 'justify-center' : 'gap-2.5'} border-b border-border`}>
+      <div
+        className={`p-4 pb-3 flex items-center ${isCollapsed ? 'justify-center' : 'gap-2.5'} border-b border-border`}
+      >
         <img
           src={iconUrl}
           alt="LoginLens Logo"
@@ -70,8 +154,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) =
         />
         {!isCollapsed && (
           <div className="min-w-0">
-            <span className="text-base font-bold tracking-tight truncate block">LoginLens</span>
-            <span className="text-[10px] text-muted-foreground font-medium">Identity Vault</span>
+            <span className="text-base font-bold tracking-tight truncate block">
+              LoginLens
+            </span>
+            <span className="text-[10px] text-muted-foreground font-medium">
+              Identity Vault
+            </span>
           </div>
         )}
       </div>
@@ -89,8 +177,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) =
               <div className="border-t border-border my-2" />
             )}
             {section.items.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeView === item.id;
+              const Icon = item.icon
+              const isActive = activeView === item.id
               return (
                 <button
                   key={item.id}
@@ -106,10 +194,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) =
                 >
                   <Icon size={18} className="shrink-0" />
                   {!isCollapsed && (
-                    <span className="font-medium text-sm truncate">{item.label}</span>
+                    <span className="font-medium text-sm truncate">
+                      {item.label}
+                    </span>
                   )}
                 </button>
-              );
+              )
             })}
           </div>
         ))}
@@ -119,17 +209,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) =
       {!isCollapsed && (
         <div className="p-3 border-t border-border">
           <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-muted/50 justify-between">
-            <div className="flex items-center gap-1.5" title="Total Vault Entries">
+            <div
+              className="flex items-center gap-1.5"
+              title="Total Vault Entries"
+            >
               <Database size={13} className="text-muted-foreground shrink-0" />
-              <span className="text-[11px] text-muted-foreground font-medium">{totalVaultItems}</span>
+              <span className="text-[11px] text-muted-foreground font-medium">
+                {totalVaultItems}
+              </span>
             </div>
-            <div className="flex items-center gap-1.5" title="Total OAuth Identities">
+            <div
+              className="flex items-center gap-1.5"
+              title="Total OAuth Identities"
+            >
               <Globe size={13} className="text-muted-foreground shrink-0" />
-              <span className="text-[11px] text-muted-foreground font-medium">{totalOAuth}</span>
+              <span className="text-[11px] text-muted-foreground font-medium">
+                {totalOAuth}
+              </span>
             </div>
           </div>
         </div>
       )}
     </aside>
-  );
-};
+  )
+}

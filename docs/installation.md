@@ -15,7 +15,7 @@ LoginLens is built on Manifest V3 (MV3) and supports modern browsers. Ensure you
 
 For the easiest installation, you can download the pre-compiled version of the extension from our GitHub Releases page.
 
-1. Navigate to the [Releases page](https://github.com/krishnalsh2004/LoginLens/releases) and download the latest `.zip` file for your browser (Chrome, Edge, or Firefox).
+1. Navigate to the [Releases page](https://github.com/Life-Experimentalist/LoginLens/releases) and download the latest `.zip` file for your browser (Chrome, Edge, Brave, Opera, or Firefox).
 2. Extract the downloaded `.zip` file to a folder on your computer.
 
 ### Google Chrome
@@ -43,39 +43,33 @@ For the easiest installation, you can download the pre-compiled version of the e
 If you prefer to build the extension from source, or want to contribute to the project, follow these steps.
 
 ### Prerequisites
-- [Node.js](https://nodejs.org/) (Version 20+)
-- [pnpm](https://pnpm.io/) (Version 8+)
+- [Node.js](https://nodejs.org/) 18 or newer
+- npm (ships with Node.js)
 
 ### Build Instructions
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/krishnalsh2004/LoginLens
-   cd LoginLens
+   git clone https://github.com/Life-Experimentalist/LoginLens
    ```
 
 2. **Install dependencies:**
    ```bash
-   pnpm install
+   npm install
    ```
 
-3. **Build the extension:**
-   Depending on your target browser, run one of the following commands:
-   - For **Chrome (MV3)**:
-     ```bash
-     pnpm build
-     ```
-   - For **Firefox**:
-     ```bash
-     pnpm build --target=firefox-mv3
-     ```
-   - For **Edge**:
-     ```bash
-     pnpm build --target=edge-mv3
-     ```
+3. **Build the extension** for your browser — `build:chrome`, `build:edge`,
+   `build:brave`, `build:opera`, `build:firefox`, `build:firefox-mv2` or
+   `build:safari`:
+   ```bash
+   npm run build:chrome
+   ```
 
 4. **Load the extension:**
-   Follow the manual installation steps above, but load the generated build folder (e.g., `build/chrome-mv3-prod/` or the respective browser folder).
+   Follow the manual installation steps above, but load the generated build
+   folder — `build/<target>-prod/`, e.g. `build/chrome-mv3-prod/`.
+
+See [Multi-Browser Support](./browsers.md) for per-browser notes.
 
 ---
 
@@ -85,16 +79,23 @@ After successfully loading the extension:
 1. Click the **puzzle piece icon** in your browser's toolbar to view your extensions.
 2. Find **LoginLens** and click the pin icon to keep it visible on your toolbar.
 3. Click the LoginLens icon to open the popup.
-4. From the popup, click on **Open Vault** to view your dashboard and begin managing your accounts and API keys.
+4. From the popup, click **Open Vault Dashboard** to view your dashboard and begin managing your accounts and API keys.
 
 ---
 
 ## Permissions Explanation
 
-LoginLens requests certain permissions during installation. We value your privacy and security. **All data stays entirely local, and nothing is ever sent to external servers.**
+LoginLens requests certain permissions during installation. **There is no LoginLens server, no account, and no telemetry — nothing is sent to us, ever.** Two things can leave your device, and both are off until you turn them on: fetching real site favicons from Google (Settings → Interface), and cross-device sync, which encrypts the vault with your passphrase and hands the ciphertext to your browser's own sync. See [privacy.md](./privacy.md) for the detail.
 
 Here is why we need each permission:
-- **`storage`**: Used to securely save your vault data, accounts, and settings locally on your machine.
-- **`tabs`**: Used to detect tab navigation for single-page applications (SPA) to ensure OAuth captures trigger correctly.
-- **`clipboardWrite`**: Allows the extension to provide one-click "Copy" functionality for passwords and API keys.
-- **`host_permissions` (`https://*/*`)**: Needed to run the content script across all pages to auto-detect OAuth flows and capture authentication details locally.
+- **`storage`**: Saves your vault, accounts, and settings locally on your machine.
+- **`tabs`**: Detects tab navigation, including single-page-app routing, so an OAuth sign-in can be tied back to the site that started it.
+- **`clipboardWrite`**: Powers the one-click "Copy" buttons for usernames and API keys.
+- **`alarms`**: Runs the daily check that writes a local restore point when your vault has changed.
+
+LoginLens requests **no host permissions**. Its content scripts are declared
+statically in the manifest, which is what the browser describes at install time
+as "read and change your data on websites you visit".
+
+See [PERMISSIONS.md](../PERMISSIONS.md) for the full breakdown, including the
+permissions LoginLens deliberately does not request.

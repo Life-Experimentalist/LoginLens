@@ -1,0 +1,158 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# A new push to the same branch makes the in-flight run obsolete.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Lint, typecheck & test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ['18.x', '20.x', '22.x']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+
+      - run: npm ci
+
+      - name: Test with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 14
+
+  build:
+    name: Build (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        # `dir` is spelled out because firefox-mv2 is the one target whose
+        # output directory is not <target>-mv3-prod. A build target that is
+        # advertised but never built is a target that is quietly broken.
+        include:
+          - target: chrome
+            dir: chrome-mv3-prod
+          - target: firefox
+            dir: firefox-mv3-prod
+          - target: firefox-mv2
+            dir: firefox-mv2-prod
+          - target: edge
+            dir: edge-mv3-prod
+          - target: brave
+            dir: brave-mv3-prod
+          - target: opera
+            dir: opera-mv3-prod
+          - target: safari
+            dir: safari-mv3-prod
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build ${{ matrix.target }}
+        run: npm run build:${{ matrix.target }}
+
+      # The manifest is the security boundary users are asked to trust, and it
+      # is generated rather than checked in — so CI asserts on the built file
+      # instead of on package.json. A permission that creeps in via a
+      # dependency or a stray content-script config fails the build here rather
+      # than being noticed after a store review.
+      - name: Assert the built manifest requests nothing extra
+        if: matrix.target == 'chrome'
+        run: |
+          MANIFEST=build/chrome-mv3-prod/manifest.json
+          echo "::group::manifest"
+          cat "$MANIFEST"
+          echo "::endgroup::"
+
+          # `sort` so the assertion is about the set of permissions, not the
+          # order Plasmo happens to emit them in.
+          PERMS=$(jq -c '.permissions | sort' "$MANIFEST")
+          EXPECTED='["alarms","clipboardWrite","storage","tabs"]'
+          if [ "$PERMS" != "$EXPECTED" ]; then
+            echo "::error::permissions changed: got $PERMS, expected $EXPECTED"
+            exit 1
+          fi
+
+          if jq -e 'has("host_permissions")' "$MANIFEST" > /dev/null; then
+            echo "::error::host_permissions reappeared in the manifest"
+            exit 1
+          fi
+
+          # Content scripts are the other half of the boundary: `matches` is
+          # what actually decides which pages this extension can read.
+          if jq -e '[.content_scripts[].matches[]] | index("<all_urls>")' "$MANIFEST" > /dev/null; then
+            echo "::error::a content script asked for <all_urls>"
+            exit 1
+          fi
+
+          # The bridge is the one script that talks to a web page. It must stay
+          # pinned to our own site — widening it would let any site it matches
+          # ask the extension questions.
+          BRIDGE=$(jq -c '[.content_scripts[] | select(.js[] | test("bridge-content")) | .matches[]] | sort' "$MANIFEST")
+          EXPECTED_BRIDGE='["http://127.0.0.1:*/*","http://localhost:*/*","https://*.vkrishna04.me/*","https://loginlens.vkrishna04.me/*"]'
+          if [ "$BRIDGE" != "$EXPECTED_BRIDGE" ]; then
+            echo "::error::bridge content script matches changed: got $BRIDGE, expected $EXPECTED_BRIDGE"
+            exit 1
+          fi
+
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: loginlens-${{ matrix.target }}
+          path: build/${{ matrix.dir }}/
+          retention-days: 14

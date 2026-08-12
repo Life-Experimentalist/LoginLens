@@ -1,0 +1,20 @@
+{
+  "name": "LoginLens Identity Vault",
+  "short_name": "LoginLens",
+  "description": "Local-first zero-server identity vault, password reuse analyzer & OAuth manager",
+  "start_url": "./vault.html#at-a-glance",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#4f46e5",
+  "scope": "./",
+  "icons": [
+    {
+      "src": "./icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["security", "utilities", "productivity"],
+  "orientation": "any"
+}

@@ -1,55 +1,169 @@
-name: Build and Release LoginLens
+name: Release
 
 on:
   push:
     tags:
-      - 'v*.*.*' # Trigger on version tags
+      - 'v*.*.*'
+
+# The release job creates a GitHub Release, which needs write access to the
+# repository contents. Everything else here only reads.
+permissions:
+  contents: write
 
 jobs:
-  build:
+  # The tag is the only thing a human types during a release, and it is not the
+  # thing that ends up in the built manifest — Plasmo reads that from
+  # package.json. Tagging v1.0.1 while package.json still says 1.0.0 produces
+  # seven artifacts that all identify as the previous version, which a store
+  # rejects as a duplicate upload long after the release looks finished.
+  guard:
+    name: Tag matches package.json
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 8
-
-      - name: Install Dependencies
-        run: pnpm install
-
-      - name: Build Chrome MV3
-        run: pnpm run build --target=chrome-mv3
-
-      - name: Build Firefox MV3
-        run: pnpm run build --target=firefox-mv3
-
-      - name: Build Edge MV3
-        run: pnpm run build --target=edge-mv3
-
-      - name: Zip Artifacts
+      - name: Compare
         run: |
-          mkdir -p dist/releases
-          cd build
-          zip -r ../dist/releases/loginlens-chrome.zip chrome-mv3-prod
-          zip -r ../dist/releases/loginlens-firefox.zip firefox-mv3-prod
-          zip -r ../dist/releases/loginlens-edge.zip edge-mv3-prod
-          cd ..
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(node -p "require('./package.json').version")
+          echo "tag=$TAG package.json=$PKG"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "::error::tag v$TAG does not match package.json version $PKG"
+            exit 1
+          fi
+
+  build:
+    name: Build (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    needs: guard
+    strategy:
+      fail-fast: false
+      matrix:
+        # Every target advertised in docs/browsers.md is built here. A target
+        # that ships in the docs but not in the release is a target users are
+        # told about and cannot install.
+        include:
+          - target: chrome
+            dir: chrome-mv3-prod
+          - target: firefox
+            dir: firefox-mv3-prod
+          - target: firefox-mv2
+            dir: firefox-mv2-prod
+          - target: edge
+            dir: edge-mv3-prod
+          - target: brave
+            dir: brave-mv3-prod
+          - target: opera
+            dir: opera-mv3-prod
+          - target: safari
+            dir: safari-mv3-prod
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+
+      - run: npm ci
+
+      # A release is the worst place to discover a broken test, and it is cheap
+      # to rule out before seven builds run.
+      - name: Test
+        run: npm test
+
+      - name: Build ${{ matrix.target }}
+        run: npm run build:${{ matrix.target }}
+
+      - name: Zip
+        run: |
+          cd build/${{ matrix.dir }}
+          zip -r "$GITHUB_WORKSPACE/loginlens-${{ matrix.target }}.zip" .
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: loginlens-${{ matrix.target }}
+          path: loginlens-${{ matrix.target }}.zip
+          retention-days: 7
+
+  # addons.mozilla.org requires a source archive for any add-on assembled by a
+  # bundler, because a reviewer cannot read Parcel's output. Without it the
+  # submission sits in the queue until someone asks for one by email. Building
+  # it here means the archive in the release is always the exact tree the
+  # published build came from.
+  source:
+    name: Source archive for AMO
+    runs-on: ubuntu-latest
+    needs: guard
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Archive the tree git tracks
+        run: |
+          # git archive, not `zip -r .` — it emits exactly the tracked tree, so
+          # node_modules, build output, coverage and anything gitignored are
+          # excluded by construction rather than by a list that goes stale.
+          # HEAD rather than the tag name: checkout lands on the tagged commit
+          # either way, and HEAD does not depend on the tag object having been
+          # fetched into the shallow clone.
+          git archive --format=zip --prefix=loginlens/ -o loginlens-source.zip HEAD
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: loginlens-source
+          path: loginlens-source.zip
+          retention-days: 7
+
+  release:
+    name: Publish release
+    runs-on: ubuntu-latest
+    needs: [build, source]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download builds
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      # Only this version's section, not the whole file — otherwise every
+      # future release would repeat the entire history in its notes.
+      - name: Extract release notes
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          # Literal prefix matching rather than a built-up regex: the version
+          # contains dots and the heading contains brackets, and getting that
+          # escaping subtly wrong fails silently with empty notes.
+          awk -v hdr="## [$VERSION]" '
+            index($0, hdr) == 1 { found = 1; next }
+            found && index($0, "## [") == 1 { exit }
+            found { print }
+          ' CHANGELOG.md > RELEASE_NOTES.md
+
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "::error::CHANGELOG.md has no '## [$VERSION]' section"
+            exit 1
+          fi
+
+      # Anyone installing an unpacked build from this page is trusting a zip
+      # they downloaded over the network. A checksum file lets them verify it
+      # against what the workflow actually produced.
+      - name: Checksums
+        run: |
+          cd artifacts
+          sha256sum *.zip > SHA256SUMS.txt
+          cat SHA256SUMS.txt
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/releases/*.zip
-          body_path: CHANGELOG.md
+          files: |
+            artifacts/*.zip
+            artifacts/SHA256SUMS.txt
+          body_path: RELEASE_NOTES.md
           draft: false
           prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

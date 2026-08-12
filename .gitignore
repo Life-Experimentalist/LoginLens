@@ -1,4 +1,15 @@
+# Plaintext password exports live here while you are importing them.
 temp/
 build/
 node_modules/
 .plasmo/
+coverage/
+# Incremental typecheck cache — machine-specific, and it changes on every run.
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+.devprune.json
+.devprune-ignore
+ignore.devprune.json
+.agents/
+.remember/
+.vscode/
