@@ -1,0 +1,214 @@
+name: Publish to stores
+
+# Manual only, and never on a tag push.
+#
+# The first submission to every one of these stores has to be made by hand:
+# each needs a listing, screenshots, category, and privacy answers that no API
+# accepts. This workflow is for the *second* release onwards, where the listing
+# already exists and only the package changes.
+#
+# Each job skips itself when its credentials are absent, so the workflow is
+# harmless to merge before any secret exists — it will simply report every store
+# as skipped.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish (e.g. v1.0.1)'
+        required: true
+        type: string
+      chrome:
+        description: 'Publish to Chrome Web Store'
+        type: boolean
+        default: false
+      edge:
+        description: 'Publish to Edge Add-ons'
+        type: boolean
+        default: false
+      firefox:
+        description: 'Publish to Firefox AMO'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+
+      - run: npm ci
+
+      # Publishing a package that fails its own tests is the one mistake this
+      # workflow can make that users cannot undo by uninstalling.
+      - run: npm test
+
+      - name: Build the three published targets
+        run: |
+          npm run build:chrome
+          npm run build:edge
+          npm run build:firefox
+
+      - name: Zip
+        run: |
+          for pair in "chrome:chrome-mv3-prod" "edge:edge-mv3-prod" "firefox:firefox-mv3-prod"; do
+            name="${pair%%:*}"; dir="${pair##*:}"
+            (cd "build/$dir" && zip -qr "$GITHUB_WORKSPACE/loginlens-$name.zip" .)
+          done
+
+      - name: Source archive
+        run: git archive --format=zip --prefix=loginlens/ -o loginlens-source.zip HEAD
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: '*.zip'
+          retention-days: 1
+
+  chrome:
+    name: Chrome Web Store
+    runs-on: ubuntu-latest
+    needs: build
+    if: inputs.chrome
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages
+
+      - name: Upload and publish
+        env:
+          EXT_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+        run: |
+          if [ -z "$EXT_ID" ] || [ -z "$REFRESH_TOKEN" ]; then
+            echo "::notice::Chrome credentials not set — skipping."
+            exit 0
+          fi
+
+          TOKEN=$(curl -sS -X POST https://oauth2.googleapis.com/token \
+            -d "client_id=$CLIENT_ID" \
+            -d "client_secret=$CLIENT_SECRET" \
+            -d "refresh_token=$REFRESH_TOKEN" \
+            -d "grant_type=refresh_token" | jq -r .access_token)
+
+          if [ "$TOKEN" = "null" ] || [ -z "$TOKEN" ]; then
+            echo "::error::Could not exchange the refresh token for an access token."
+            exit 1
+          fi
+
+          # -f so a rejected upload fails the step. Without it curl prints the
+          # store's error body and exits 0, and the publish call below then
+          # republishes the version that was already there.
+          curl -sS -f -X PUT \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "x-goog-api-version: 2" \
+            -T loginlens-chrome.zip \
+            "https://www.googleapis.com/upload/chromewebstore/v1.1/items/$EXT_ID"
+
+          curl -sS -f -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "x-goog-api-version: 2" \
+            -H "Content-Length: 0" \
+            "https://www.googleapis.com/chromewebstore/v1.1/items/$EXT_ID/publish"
+
+  edge:
+    name: Edge Add-ons
+    runs-on: ubuntu-latest
+    needs: build
+    if: inputs.edge
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages
+
+      - name: Upload and publish
+        env:
+          PRODUCT_ID: ${{ secrets.EDGE_PRODUCT_ID }}
+          API_KEY: ${{ secrets.EDGE_API_KEY }}
+          CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
+        run: |
+          if [ -z "$PRODUCT_ID" ] || [ -z "$API_KEY" ]; then
+            echo "::notice::Edge credentials not set — skipping."
+            exit 0
+          fi
+
+          BASE="https://api.addons.microsoftedge.microsoft.com/v1/products/$PRODUCT_ID/submissions"
+          AUTH="Authorization: ApiKey $API_KEY"
+          CID="X-ClientID: $CLIENT_ID"
+
+          # Edge's API is asynchronous: the upload returns an operation id and
+          # the package is not accepted until that operation reports success.
+          OP=$(curl -sS -f -D - -o /dev/null -X POST "$BASE/draft/package" \
+            -H "$AUTH" -H "$CID" \
+            -H "Content-Type: application/zip" \
+            --data-binary @loginlens-edge.zip \
+            | tr -d '\r' | awk 'tolower($1) == "location:" { print $2 }')
+
+          echo "operation: $OP"
+
+          for _ in $(seq 1 60); do
+            STATUS=$(curl -sS -f "$BASE/draft/package/operations/$OP" \
+              -H "$AUTH" -H "$CID" | jq -r .status)
+            echo "status: $STATUS"
+            [ "$STATUS" = "Succeeded" ] && break
+            if [ "$STATUS" = "Failed" ]; then
+              echo "::error::Edge rejected the package."
+              exit 1
+            fi
+            sleep 10
+          done
+
+          if [ "$STATUS" != "Succeeded" ]; then
+            echo "::error::Edge upload did not finish in ten minutes."
+            exit 1
+          fi
+
+          curl -sS -f -X POST "$BASE" -H "$AUTH" -H "$CID" -H "Content-Length: 0"
+
+  firefox:
+    name: Firefox AMO
+    runs-on: ubuntu-latest
+    needs: build
+    if: inputs.firefox
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+
+      - name: Sign and submit
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: |
+          if [ -z "$AMO_JWT_ISSUER" ] || [ -z "$AMO_JWT_SECRET" ]; then
+            echo "::notice::AMO credentials not set — skipping."
+            exit 0
+          fi
+
+          mkdir -p unpacked && (cd unpacked && unzip -q ../loginlens-firefox.zip)
+
+          # --channel=listed submits to the public AMO listing. The source zip
+          # is required because the add-on is bundled: a reviewer cannot read
+          # Parcel output, and without it the submission waits on an email.
+          npx --yes web-ext@8 sign \
+            --source-dir=unpacked \
+            --upload-source-code=loginlens-source.zip \
+            --channel=listed \
+            --api-key="$AMO_JWT_ISSUER" \
+            --api-secret="$AMO_JWT_SECRET"

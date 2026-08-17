@@ -12,12 +12,16 @@ import {
   Tag
 } from 'lucide-react'
 import type { GlobalOAuthAccount, DomainEntry } from '../../core/storage/schema'
+import { useToast } from '~/components/ui/ToastContext'
+import { FaviconImage } from '~/components/ui/FaviconImage'
 
 interface Props {
   oauthRegistry: GlobalOAuthAccount[]
   setOauthRegistry: (val: GlobalOAuthAccount[]) => void
   savedAccounts: DomainEntry[]
   setSavedAccounts: (val: DomainEntry[]) => void
+  isCollapsed?: boolean
+  setIsCollapsed?: (val: boolean) => void
 }
 
 const KNOWN_PROVIDERS: Record<string, { label: string; color: string }> = {
@@ -36,7 +40,9 @@ export const GlobalOAuthSection: React.FC<Props> = ({
   oauthRegistry,
   setOauthRegistry,
   savedAccounts,
-  setSavedAccounts
+  setSavedAccounts,
+  isCollapsed = false,
+  setIsCollapsed
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editIdentity, setEditIdentity] = useState('')
@@ -49,12 +55,21 @@ export const GlobalOAuthSection: React.FC<Props> = ({
   const [newIdentity, setNewIdentity] = useState('')
   const [newNotes, setNewNotes] = useState('')
 
-  if (!oauthRegistry) return null
+  // Must sit above the `if (!oauthRegistry) return null` below. Called after
+  // it, this hook is skipped on the renders where the registry has not loaded
+  // yet, and React throws "rendered more hooks than during the previous
+  // render" the moment it arrives.
+  const { showToast, confirmAction } = useToast()
+
+  const registry = useMemo(
+    () => (Array.isArray(oauthRegistry) ? oauthRegistry : []),
+    [oauthRegistry]
+  )
 
   // ── Group by provider ─────────────────────────────────────────────────────
   const grouped = useMemo(() => {
     const map = new Map<string, GlobalOAuthAccount[]>()
-    oauthRegistry.forEach((acc) => {
+    registry.forEach((acc) => {
       if (!map.has(acc.provider)) map.set(acc.provider, [])
       map.get(acc.provider)!.push(acc)
     })
@@ -64,7 +79,9 @@ export const GlobalOAuthSection: React.FC<Props> = ({
       const bKnown = b in KNOWN_PROVIDERS ? 0 : 1
       return aKnown - bKnown || a.localeCompare(b)
     })
-  }, [oauthRegistry])
+  }, [registry])
+
+  if (!oauthRegistry) return null
 
   const toggleProvider = (provider: string) => {
     setExpandedProviders((prev) => {
@@ -82,13 +99,17 @@ export const GlobalOAuthSection: React.FC<Props> = ({
   }
 
   const handleDelete = (id: string) => {
-    if (
-      !window.confirm(
-        "Remove this OAuth account from the registry? (This won't delete website logins)"
-      )
-    )
-      return
-    setOauthRegistry(oauthRegistry.filter((a) => a.id !== id))
+    confirmAction({
+      title: 'Remove OAuth Account',
+      message: "Remove this OAuth account from the registry? (This won't delete website logins)",
+      confirmText: 'Remove',
+      cancelText: 'Cancel',
+      type: 'destructive',
+      onConfirm: () => {
+        setOauthRegistry(oauthRegistry.filter((a) => a.id !== id))
+        showToast('OAuth account removed from registry', 'info')
+      }
+    })
   }
 
   const handleSave = (id: string) => {
@@ -97,7 +118,7 @@ export const GlobalOAuthSection: React.FC<Props> = ({
 
     const trimmedIdentity = editIdentity.trim()
     if (!trimmedIdentity) {
-      alert('Identity cannot be empty')
+      showToast('Identity cannot be empty', 'error')
       return
     }
 
@@ -139,11 +160,12 @@ export const GlobalOAuthSection: React.FC<Props> = ({
     }
 
     setEditingId(null)
+    showToast('OAuth account updated!', 'success')
   }
 
   const handleAddNew = () => {
     if (!newProvider.trim() || !newIdentity.trim()) {
-      alert('Provider and Identity are required.')
+      showToast('Provider and Identity are required.', 'error')
       return
     }
     const cleanProvider = newProvider
@@ -177,19 +199,34 @@ export const GlobalOAuthSection: React.FC<Props> = ({
           <h2 className="text-xl font-bold tracking-tight">
             Global OAuth Registry
           </h2>
-          <span className="text-xs bg-indigo-500/10 text-indigo-500 px-2 py-0.5 rounded-full font-semibold">
+          <span className="text-xs bg-indigo-500/10 text-indigo-500 px-2.5 py-0.5 rounded-full font-bold">
             {oauthRegistry.length}
           </span>
         </div>
-        <button
-          onClick={() => setIsAdding(!isAdding)}
-          className="flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-primary/80 transition-colors"
-        >
-          <Plus size={14} />
-          {isAdding ? 'Cancel' : 'Add OAuth Provider'}
-        </button>
+        <div className="flex items-center gap-2">
+          {!isCollapsed && (
+            <button
+              onClick={() => setIsAdding(!isAdding)}
+              className="flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-primary/80 transition-colors"
+            >
+              <Plus size={14} />
+              {isAdding ? 'Cancel' : 'Add OAuth Provider'}
+            </button>
+          )}
+          {setIsCollapsed && (
+            <button
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="p-1.5 rounded-lg border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm"
+            >
+              <span>{isCollapsed ? 'Expand' : 'Collapse'}</span>
+              {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+            </button>
+          )}
+        </div>
       </div>
 
+      {!isCollapsed && (
+        <>
       {/* Add Form */}
       <AnimatePresence>
         {isAdding && (
@@ -289,14 +326,7 @@ export const GlobalOAuthSection: React.FC<Props> = ({
                 onClick={() => toggleProvider(provider)}
                 className="w-full flex items-center gap-3 p-4 hover:bg-muted/50 transition-colors text-left"
               >
-                <img
-                  src={`https://www.google.com/s2/favicons?domain=${provider}&sz=32`}
-                  className="w-6 h-6 rounded"
-                  alt={provider}
-                  onError={(e) => {
-                    ;(e.target as HTMLImageElement).style.display = 'none'
-                  }}
-                />
+                <FaviconImage domain={provider} size={24} />
                 <div className="flex-1 min-w-0">
                   <p className="font-bold text-foreground text-sm">
                     {providerInfo?.label || provider}
@@ -410,15 +440,9 @@ export const GlobalOAuthSection: React.FC<Props> = ({
                                         key={domain}
                                         className="inline-flex items-center gap-1 text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded border border-border/50"
                                       >
-                                        <img
-                                          src={`https://www.google.com/s2/favicons?domain=${domain}&sz=16`}
-                                          className="w-3 h-3 rounded"
-                                          alt=""
-                                          onError={(e) => {
-                                            ;(
-                                              e.target as HTMLImageElement
-                                            ).style.display = 'none'
-                                          }}
+                                        <FaviconImage
+                                          domain={domain}
+                                          size={12}
                                         />
                                         {domain}
                                       </span>
@@ -457,6 +481,8 @@ export const GlobalOAuthSection: React.FC<Props> = ({
           )
         })}
       </div>
+        </>
+      )}
     </div>
   )
 }

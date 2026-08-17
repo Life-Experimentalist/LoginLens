@@ -1,61 +1,84 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/icon.png" />
+    <!-- The favicon used to be the 1536x1536, 2 MB icon.png: two megabytes
+         downloaded by every visitor to draw a 16-pixel square. -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- Primary SEO -->
-    <title>LoginLens — Your Identity Vault. Zero Servers.</title>
-    <meta name="description" content="LoginLens is a privacy-first, open-source Chrome extension that automatically tracks OAuth logins, stores credentials locally, and maps your digital identity. Zero external servers. 100% local storage." />
-    <meta name="keywords" content="LoginLens, browser extension, password manager, OAuth tracker, identity vault, Chrome extension, privacy, local storage, open source, MV3" />
-    <meta name="author" content="LoginLens" />
-    <link rel="canonical" href="https://krishnalsh2004.github.io/LoginLens/" />
+    <!-- Dark Reader Extension Lock & Theme Meta -->
+    <meta name="darkreader-lock" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#09090b" />
+
+    <!-- Primary SEO Meta Tags -->
+    <title>LoginLens — Your Identity Vault. No Backend.</title>
+    <meta name="title" content="LoginLens — Your Identity Vault. No Backend." />
+    <meta name="description" content="LoginLens is a privacy-first, open-source browser extension that automatically tracks OAuth logins, keeps your identity vault in your own browser, and maps your digital identity. No account, no backend, no telemetry." />
+    <meta name="keywords" content="LoginLens, browser extension, password manager, OAuth tracker, identity vault, Chrome extension, Firefox extension, Edge extension, privacy, local storage, open source, MV3, offline decryptor" />
+    <meta name="author" content="LoginLens Team" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <link rel="canonical" href="https://loginlens.vkrishna04.me/" />
+    <link rel="manifest" href="/manifest.webmanifest" />
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://krishnalsh2004.github.io/LoginLens/" />
-    <meta property="og:title" content="LoginLens — Your Identity Vault. Zero Servers." />
-    <meta property="og:description" content="Privacy-first OAuth tracking and credential management. Everything stays locally in your browser. No cloud sync, no tracking, pure control." />
-    <meta property="og:image" content="/social_banner.png" />
+    <meta property="og:url" content="https://loginlens.vkrishna04.me/" />
+    <meta property="og:title" content="LoginLens — Your Identity Vault. No Backend." />
+    <meta property="og:description" content="Privacy-first OAuth tracking and credential management. Your vault lives in your browser. No account, no backend, no telemetry — and sync stays off until you turn it on." />
+    <meta property="og:image" content="https://loginlens.vkrishna04.me/social_banner.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:site_name" content="LoginLens" />
 
-    <!-- Twitter Card -->
+    <!-- Twitter Cards -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:url" content="https://krishnalsh2004.github.io/LoginLens/" />
-    <meta name="twitter:title" content="LoginLens — Your Identity Vault. Zero Servers." />
-    <meta name="twitter:description" content="Privacy-first Chrome extension for OAuth tracking and secure credential storage. 100% local. Open source." />
-    <meta name="twitter:image" content="/social_banner.png" />
+    <meta name="twitter:url" content="https://loginlens.vkrishna04.me/" />
+    <meta name="twitter:title" content="LoginLens — Your Identity Vault. No Backend." />
+    <meta name="twitter:description" content="Privacy-first browser extension for OAuth tracking and local credential storage. No account, no backend, no telemetry. Open source." />
+    <meta name="twitter:image" content="https://loginlens.vkrishna04.me/social_banner.png" />
 
-    <!-- PWA / App metadata -->
-    <meta name="theme-color" content="#09090b" />
+    <!-- Application Metadata -->
     <meta name="application-name" content="LoginLens" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="LoginLens" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-    <!-- Structured Data (JSON-LD) -->
+    <!-- JSON-LD Structured Data (Schema.org) for SEO & AI Assistants -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
       "@type": "SoftwareApplication",
       "name": "LoginLens",
-      "operatingSystem": "Chrome, Edge, Firefox",
+      "operatingSystem": "Chrome, Edge, Firefox, Brave, Opera",
       "applicationCategory": "SecurityApplication",
       "offers": {
         "@type": "Offer",
         "price": "0",
         "priceCurrency": "USD"
       },
-      "description": "Privacy-first browser extension for OAuth tracking and identity management. Zero external servers.",
-      "url": "https://krishnalsh2004.github.io/LoginLens/",
+      "description": "Open-source browser extension that maps which account, which OAuth provider and which authenticator you use on every site. No account, no backend, no telemetry — it never stores a password.",
+      "url": "https://loginlens.vkrishna04.me/",
+      "softwareVersion": "1.0.0",
+      "isAccessibleForFree": true,
+      "codeRepository": "https://github.com/Life-Experimentalist/LoginLens",
+      "sameAs": [
+        "https://github.com/Life-Experimentalist/LoginLens"
+      ],
       "author": {
-        "@type": "Person",
-        "name": "LoginLens Team"
-      }
+        "@type": "Organization",
+        "name": "Life Experimentalist",
+        "url": "https://github.com/Life-Experimentalist"
+      },
+      "license": "https://github.com/Life-Experimentalist/LoginLens/blob/main/LICENSE"
     }
     </script>
   </head>
-  <body>
+  <body class="bg-zinc-950 text-zinc-50 antialiased selection:bg-indigo-500/30 overflow-x-hidden min-h-screen">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

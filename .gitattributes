@@ -1,0 +1,21 @@
+# Normalise line endings on the way into the repository.
+#
+# Without this, a contributor on Windows and a contributor on Linux produce
+# whole-file diffs of each other's work, and CI on ubuntu-latest sees changes
+# that are not changes. Everything stored as LF; Git still checks out CRLF
+# locally where the platform expects it.
+* text=auto eol=lf
+
+# Shell scripts and anything the CI runner executes must be LF even on Windows
+# checkouts — CRLF here produces `bad interpreter` at runtime.
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Binary, never to be diffed or line-ending-converted.
+*.png binary
+*.jpg binary
+*.ico binary
+*.webp binary
+*.zip binary
+*.llbak binary
