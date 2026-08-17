@@ -43,7 +43,7 @@ For the easiest installation, you can download the pre-compiled version of the e
 If you prefer to build the extension from source, or want to contribute to the project, follow these steps.
 
 ### Prerequisites
-- [Node.js](https://nodejs.org/) 18 or newer
+- [Node.js](https://nodejs.org/) 22 or newer
 - npm (ships with Node.js)
 
 ### Build Instructions

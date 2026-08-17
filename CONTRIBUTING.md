@@ -5,7 +5,9 @@ documentation corrections are all welcome.
 
 ## Development setup
 
-Requires Node.js 18 or newer.
+Requires Node.js 22 or newer. That floor comes from the test toolchain — jsdom
+and `@testing-library/jest-dom` both refuse to install below it — not from the
+extension itself, which runs in the browser.
 
 ```bash
 git clone https://github.com/Life-Experimentalist/LoginLens
@@ -32,7 +34,7 @@ extension:
 
 ## Before opening a pull request
 
-All three must pass; CI runs the same commands on Node 18, 20 and 22.
+All three must pass; CI runs the same commands on Node 22 and 24.
 
 ```bash
 npm run lint
