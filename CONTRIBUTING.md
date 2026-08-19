@@ -53,6 +53,24 @@ report over `src/core`.
 
 ---
 
+## Changing the artwork
+
+`assets/` holds the masters, at the size the store listings and the website
+need. The extension UI imports the smaller copies in `assets/ui/` instead,
+because a component that draws a 1536px master at 80px ships several megabytes
+to render a thumbnail.
+
+After editing anything in `assets/`, regenerate them and commit the result:
+
+```bash
+npm run assets
+```
+
+Import from `~/assets/ui/...` in components. `assets/icon.png` stays a master —
+Plasmo generates the manifest icon set from it.
+
+---
+
 ## Project layout
 
 ```text

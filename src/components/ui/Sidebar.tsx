@@ -13,7 +13,7 @@ import {
   Database,
   ShieldAlert
 } from 'lucide-react'
-import iconUrl from 'url:~/assets/icon.png'
+import iconUrl from 'url:~/assets/ui/icon.png'
 import { useStorage } from '@plasmohq/storage/hook'
 import { extensionStorage } from '../../core/storage/config'
 import type { DomainEntry, GlobalOAuthAccount } from '../../core/storage/schema'

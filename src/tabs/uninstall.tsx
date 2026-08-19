@@ -38,8 +38,8 @@ import {
 } from '../core/utils/export'
 import { clearCloudSync, getCloudSyncStatus } from '../core/utils/cloud-sync'
 import { NEW_ISSUE_URL, RELEASES_URL } from '../core/constants/links'
-import iconUrl from 'url:~/assets/icon.png'
-import logoUrl from 'url:~/assets/logo_transparent.png'
+import iconUrl from 'url:~/assets/ui/icon.png'
+import logoUrl from 'url:~/assets/ui/logo-transparent.png'
 import '~/style.css'
 
 type Step = 'main' | 'export' | 'done'

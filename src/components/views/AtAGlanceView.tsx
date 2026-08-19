@@ -21,7 +21,7 @@ import { analyzePasswordHashes, classifyReuseGroups } from '../../core/utils/pas
 import { useWeakFingerprints } from '../../core/hooks/useWeakFingerprints'
 import { PendingCapturesSection } from './PendingCapturesSection'
 import { FaviconImage } from '../ui/FaviconImage'
-import iconStarrySkyUrl from 'url:~/assets/icon_starry_sky.png'
+import iconStarrySkyUrl from 'url:~/assets/ui/icon-starry-sky.png'
 
 const StatCard: React.FC<{
   icon: React.ReactNode

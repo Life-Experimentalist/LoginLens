@@ -16,7 +16,7 @@ import {
   Smartphone,
   Globe
 } from 'lucide-react'
-import iconUrl from 'url:~/assets/icon.png'
+import iconUrl from 'url:~/assets/ui/icon.png'
 import type { DomainEntry, PendingOAuthCapture } from './core/storage/schema'
 import {
   matchesDomain,
