@@ -47,6 +47,11 @@ jobs:
           node-version: 22.x
           cache: npm
 
+      # npm 10, which ships with Node 22, rejects this lock file as out of sync
+      # because it places some transitive dependencies differently.
+      - name: Pin npm
+        run: npm install -g npm@12
+
       - run: npm ci
 
       # Publishing a package that fails its own tests is the one mistake this

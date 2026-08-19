@@ -5,9 +5,12 @@ documentation corrections are all welcome.
 
 ## Development setup
 
-Requires Node.js 22 or newer. That floor comes from the test toolchain — jsdom
-and `@testing-library/jest-dom` both refuse to install below it — not from the
-extension itself, which runs in the browser.
+Requires Node.js 22 or newer, with npm 11 or newer. The Node floor comes from
+the test toolchain — jsdom and `@testing-library/jest-dom` both refuse to
+install below it — not from the extension itself, which runs in the browser.
+The npm floor is about the lock file: npm 10 places some transitive
+dependencies differently and rejects `package-lock.json` as out of sync. If you
+are on Node 22, `npm install -g npm@12` first.
 
 ```bash
 git clone https://github.com/Life-Experimentalist/LoginLens
