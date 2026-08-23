@@ -103,6 +103,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # sitemap.xml's <lastmod> is the newest commit date of the files each
+          # page renders from, so the build needs real history. A depth-1
+          # checkout would stamp every page with the tip commit's date.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v7
         with:

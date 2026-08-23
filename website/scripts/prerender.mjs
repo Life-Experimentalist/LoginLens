@@ -10,6 +10,7 @@
  *
  * Run via `npm run build`.
  */
+import { execFileSync } from 'node:child_process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -56,6 +57,24 @@ function setMeta(html, identifier, value) {
   return html.replace(pattern, `$1${attr(value)}$2`)
 }
 
+/**
+ * Serialises the route's JSON-LD into `<script>` blocks.
+ *
+ * `<` is escaped because a value containing `</script>` would otherwise close
+ * the block early — the same guard the FAQ schema on the landing page uses.
+ */
+function structuredDataTags(route) {
+  return (route.structuredData ?? [])
+    .map(
+      (graph) =>
+        `    <script type="application/ld+json">${JSON.stringify(graph).replace(
+          /</g,
+          '\\u003c'
+        )}</script>`
+    )
+    .join('\n')
+}
+
 function buildPage(route, appHtml) {
   const canonical = `${SITE_ORIGIN}${route.path === '/' ? '/' : route.path}`
 
@@ -79,10 +98,47 @@ function buildPage(route, appHtml) {
     html = setMeta(html, 'name="robots"', 'noindex, follow')
   }
 
+  const tags = structuredDataTags(route)
+  if (tags) {
+    if (!html.includes('</head>')) {
+      throw new Error('No </head> in index.html to write structured data into')
+    }
+    html = html.replace('</head>', `${tags}\n  </head>`)
+  }
+
   return html.replace(
     '<div id="root"></div>',
     `<div id="root">${appHtml}</div>`
   )
+}
+
+/**
+ * The newest commit date across the files a page is rendered from, as
+ * `YYYY-MM-DD`.
+ *
+ * Returns null rather than guessing when git cannot answer — an absent
+ * `<lastmod>` costs nothing, while one that reports the build date on every
+ * deploy teaches crawlers to ignore the field. That makes the depth of the
+ * checkout matter: `.github/workflows/deploy-website.yml` fetches full history
+ * for exactly this reason.
+ */
+function lastModified(sources) {
+  const dates = (sources ?? [])
+    .map((file) => {
+      try {
+        return execFileSync('git', ['log', '-1', '--format=%cI', '--', file], {
+          cwd: root,
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'ignore']
+        }).trim()
+      } catch {
+        return ''
+      }
+    })
+    .filter(Boolean)
+    .sort()
+
+  return dates.length ? dates[dates.length - 1].slice(0, 10) : null
 }
 
 for (const route of ROUTES) {
@@ -101,23 +157,28 @@ const notFound = buildPage(
     path: '/404',
     title: 'Page not found — LoginLens',
     description: 'That page is not here.',
-    indexable: false
+    indexable: false,
+    structuredData: []
   },
   render('/404-not-a-real-route')
 )
 await writeFile(join(dist, '404.html'), notFound, 'utf8')
 
+const indexable = ROUTES.filter((r) => r.indexable)
+
 const sitemap = [
   '<?xml version="1.0" encoding="UTF-8"?>',
   '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-  ...ROUTES.filter((r) => r.indexable).map((r) =>
-    [
+  ...indexable.map((r) => {
+    const lastmod = lastModified(r.sources)
+    return [
       '  <url>',
       `    <loc>${SITE_ORIGIN}${r.path === '/' ? '/' : r.path}</loc>`,
+      ...(lastmod ? [`    <lastmod>${lastmod}</lastmod>`] : []),
       `    <priority>${r.priority}</priority>`,
       '  </url>'
     ].join('\n')
-  ),
+  }),
   '</urlset>',
   ''
 ].join('\n')
@@ -139,4 +200,39 @@ const robots = [
 ].join('\n')
 await writeFile(join(dist, 'robots.txt'), robots, 'utf8')
 
-console.log(`prerendered ${ROUTES.length} routes, 404.html, sitemap.xml, robots.txt`)
+// robots.txt above invites answer engines in; this is the map they get when
+// they arrive. It is generated from the same ROUTES table as the sitemap, so a
+// new page cannot be added to one and forgotten in the other.
+const llms = [
+  '# LoginLens',
+  '',
+  '> An open-source browser extension that records how you sign in to each site',
+  '> — which account, which OAuth provider, which authenticator, and where the',
+  '> password is kept — without ever storing the password itself. There is no',
+  '> account, no backend and no telemetry; the vault lives in the browser it was',
+  '> created in.',
+  '',
+  'LoginLens is not a password manager and does not replace one. A password',
+  'manager holds the secrets; LoginLens holds the map of which accounts exist,',
+  'on which sites, under which identity, signing in by which method.',
+  '',
+  '## Pages',
+  '',
+  ...indexable.map(
+    (r) =>
+      `- [${r.title}](${SITE_ORIGIN}${r.path === '/' ? '/' : r.path}): ${r.summary}`
+  ),
+  '',
+  '## Source',
+  '',
+  '- [Repository](https://github.com/Life-Experimentalist/LoginLens): source, releases and issue tracker.',
+  '- [Permissions](https://github.com/Life-Experimentalist/LoginLens/blob/main/PERMISSIONS.md): every permission the extension requests, and why.',
+  '- [Privacy](https://github.com/Life-Experimentalist/LoginLens/blob/main/docs/privacy.md): what is stored, where it is stored, and what leaves the device.',
+  '- [License](https://github.com/Life-Experimentalist/LoginLens/blob/main/LICENSE): Apache 2.0.',
+  ''
+].join('\n')
+await writeFile(join(dist, 'llms.txt'), llms, 'utf8')
+
+console.log(
+  `prerendered ${ROUTES.length} routes, 404.html, sitemap.xml, robots.txt, llms.txt`
+)

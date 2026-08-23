@@ -19,7 +19,7 @@
     <meta name="title" content="LoginLens — Your Identity Vault. No Backend." />
     <meta name="description" content="LoginLens is a privacy-first, open-source browser extension that automatically tracks OAuth logins, keeps your identity vault in your own browser, and maps your digital identity. No account, no backend, no telemetry." />
     <meta name="keywords" content="LoginLens, browser extension, password manager, OAuth tracker, identity vault, Chrome extension, Firefox extension, Edge extension, privacy, local storage, open source, MV3, offline decryptor" />
-    <meta name="author" content="LoginLens Team" />
+    <meta name="author" content="Life Experimentalist" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <link rel="canonical" href="https://loginlens.vkrishna04.me/" />
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -32,7 +32,11 @@
     <meta property="og:image" content="https://loginlens.vkrishna04.me/social_banner.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
+    <!-- Read aloud in place of the banner by a screen reader, and by anything
+         that cannot load the image at all. -->
+    <meta property="og:image:alt" content="LoginLens — a local-only map of how you sign in to everything." />
     <meta property="og:site_name" content="LoginLens" />
+    <meta property="og:locale" content="en_US" />
 
     <!-- Twitter Cards -->
     <meta name="twitter:card" content="summary_large_image" />
@@ -40,6 +44,7 @@
     <meta name="twitter:title" content="LoginLens — Your Identity Vault. No Backend." />
     <meta name="twitter:description" content="Privacy-first browser extension for OAuth tracking and local credential storage. No account, no backend, no telemetry. Open source." />
     <meta name="twitter:image" content="https://loginlens.vkrishna04.me/social_banner.png" />
+    <meta name="twitter:image:alt" content="LoginLens — a local-only map of how you sign in to everything." />
 
     <!-- Application Metadata -->
     <meta name="application-name" content="LoginLens" />
@@ -48,35 +53,13 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-    <!-- JSON-LD Structured Data (Schema.org) for SEO & AI Assistants -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "LoginLens",
-      "operatingSystem": "Chrome, Edge, Firefox, Brave, Opera",
-      "applicationCategory": "SecurityApplication",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
-      },
-      "description": "Open-source browser extension that maps which account, which OAuth provider and which authenticator you use on every site. No account, no backend, no telemetry — it never stores a password.",
-      "url": "https://loginlens.vkrishna04.me/",
-      "softwareVersion": "1.0.0",
-      "isAccessibleForFree": true,
-      "codeRepository": "https://github.com/Life-Experimentalist/LoginLens",
-      "sameAs": [
-        "https://github.com/Life-Experimentalist/LoginLens"
-      ],
-      "author": {
-        "@type": "Organization",
-        "name": "Life Experimentalist",
-        "url": "https://github.com/Life-Experimentalist"
-      },
-      "license": "https://github.com/Life-Experimentalist/LoginLens/blob/main/LICENSE"
-    }
-    </script>
+    <!-- JSON-LD Structured Data (Schema.org) for SEO & AI Assistants is not
+         written here: it differs per page, and a single copy in the template
+         would put the homepage's "this page is the extension" claim on /docs
+         and /decrypt too. `src/routes.ts` holds one graph per route and
+         `scripts/prerender.mjs` writes it in just above this line. `npm run
+         dev` therefore serves no JSON-LD — the prerendered files are what
+         ships, and scripts/assert-build.sh checks them. -->
   </head>
   <body class="bg-zinc-950 text-zinc-50 antialiased selection:bg-indigo-500/30 overflow-x-hidden min-h-screen">
     <div id="root"></div>
