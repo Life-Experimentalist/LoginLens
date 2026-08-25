@@ -22,25 +22,35 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 22 is the floor the test toolchain actually imposes: jsdom 30,
-        # @testing-library/jest-dom 7 and undici 8 all refuse to install below
-        # it. Listing 18 and 20 here tested a configuration nobody can install.
-        node-version: ['22.x', '24.x']
+        # These are the three release lines `engines.node: >=22` actually
+        # promises, so all three get tested rather than asserted:
+        #   22.x — Maintenance LTS until 2027-04-30, and the floor the test
+        #          toolchain imposes (jsdom 30, @testing-library/jest-dom 7 and
+        #          undici 8 all refuse to install below it).
+        #   24.x — Active LTS, and what every other job here pins to.
+        #   26.x — Current; becomes Active LTS on 2026-10-28.
+        # 20 is deliberately absent: it went end-of-life on 2026-04-30.
+        node-version: ['22.x', '24.x', '26.x']
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Node ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
 
-      # The lock file is written by npm 11+. The npm 10 that ships with Node 22
-      # places some transitive dependencies differently and rejects that lock as
-      # out of sync, so the matrix would pass on 24 and fail on 22 for a reason
-      # that has nothing to do with the code. Pinning npm makes the lock mean
-      # the same thing on every row.
+      # package-lock.json is written by npm 12, which nests some transitive
+      # dependencies where npm 10 hoists them. npm 10 therefore reads the lock
+      # as out of sync and fails `npm ci` with "Missing: yaml@2.9.0 from lock
+      # file" — and npm 10 is what Node 22 bundles, so the 22.x row would fail
+      # for a reason that has nothing to do with the code.
+      #
+      # npm 11 is the verified floor: it installs this lock cleanly, which is
+      # what `engines.npm: >=11` in package.json asserts. Pinning to 12 on
+      # every row, and in every job below, additionally keeps the resolution
+      # identical as each Node line's bundled npm drifts over time.
       - name: Pin npm
         run: npm install -g npm@12
 
@@ -59,14 +69,14 @@ jobs:
     name: Coverage
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22.x
+          node-version: 24.x
           cache: npm
 
-      # See the note in the verify job: npm 10 rejects this lock file.
+      # See the note in the verify job.
       - name: Pin npm
         run: npm install -g npm@12
 
@@ -76,7 +86,7 @@ jobs:
         run: npm run test:coverage
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: coverage/
@@ -109,14 +119,14 @@ jobs:
             dir: safari-mv3-prod
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22.x
+          node-version: 24.x
           cache: npm
 
-      # See the note in the verify job: npm 10 rejects this lock file.
+      # See the note in the verify job.
       - name: Pin npm
         run: npm install -g npm@12
 
@@ -170,7 +180,7 @@ jobs:
           fi
 
       - name: Upload build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: loginlens-${{ matrix.target }}
           path: build/${{ matrix.dir }}/

@@ -1,0 +1,122 @@
+# Dependabot keeps the three dependency surfaces this repo has current: the
+# actions the workflows call, the extension's own packages, and the website's.
+#
+# Two things it deliberately does *not* cover, so nobody assumes they are
+# handled:
+#
+#   - The `overrides` block in package.json. Those entries (sharp, esbuild,
+#     @babel/traverse, msgpackr, content-security-policy-parser) exist to force
+#     a floor on a transitive dependency Dependabot has no direct say over.
+#     Dependabot will not raise them; raising them is a manual edit.
+#   - Anything vendored under assets/ or website/public/.
+#
+# If a Dependabot PR fails `npm ci` with "Missing: <pkg> from lock file", that
+# is the lock-file-shape problem the workflows pin npm for: Dependabot may
+# regenerate package-lock.json with a different npm major than the npm 12 CI
+# installs. Fix it on the PR branch with `npm install -g npm@12 && npm install`
+# and push the result — do not weaken the pin.
+version: 2
+
+updates:
+  # ---------------------------------------------------------------------------
+  # The actions the four workflows call.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+      include: scope
+
+    # A compromised action release is the cheapest way into a repository that
+    # holds store-publishing credentials, and it is usually yanked within days.
+    # Waiting before adopting one means the bad release expires before we would
+    # ever have run it. Security updates ignore cooldown, so this does not
+    # delay a fix for a known CVE.
+    cooldown:
+      default-days: 7
+
+    groups:
+      # Eight actions across four workflows would otherwise be eight PRs a
+      # week. One PR that bumps them together is also the only honest unit of
+      # review, since a runner-version bump tends to land across all of them at
+      # once.
+      actions:
+        patterns:
+          - '*'
+
+  # ---------------------------------------------------------------------------
+  # The extension.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
+      prefix-development: chore
+      include: scope
+
+    cooldown:
+      # This extension handles a vault of account records, and npm is where
+      # supply-chain attacks against that kind of package actually happen. A
+      # malicious release is typically pulled within a day or two; adopting
+      # nothing on its publish date costs nothing and skips that window.
+      # Majors get longer because they need reading, not just merging.
+      default-days: 5
+      semver-patch-days: 3
+      semver-minor-days: 5
+      semver-major-days: 14
+
+    groups:
+      # Patch and minor bumps to the runtime dependencies are reviewed as one
+      # change; a major is not, because a major here can alter what ships to
+      # users. Majors are left ungrouped so each arrives as its own PR.
+      production:
+        dependency-type: production
+        update-types:
+          - minor
+          - patch
+      # Nothing in devDependencies reaches a user's browser, so the whole set
+      # moves together, majors included.
+      development:
+        dependency-type: development
+        update-types:
+          - major
+          - minor
+          - patch
+
+  # ---------------------------------------------------------------------------
+  # The marketing site and offline decryptor. Separate lock file, separate
+  # build, so it gets its own entry rather than sharing the root one.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: npm
+    directory: /website
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+      prefix-development: chore
+      include: scope
+
+    cooldown:
+      default-days: 5
+      semver-major-days: 14
+
+    groups:
+      # The site is a static build with no runtime/dev split worth preserving
+      # in review — the decryptor is the only security-relevant page, and it is
+      # first-party code, not a dependency.
+      website:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
