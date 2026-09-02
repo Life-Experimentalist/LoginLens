@@ -1,0 +1,45 @@
+{
+	"$schema": "https://vkrishna04.me/schemas/project-manifest.schema.json",
+	"manifestVersion": 2,
+	"tagline": "A local-only map of how you sign in to everything.",
+	"summary": "A browser extension that records which account, OAuth provider and MFA method you used on each site — the layer above passwords that nothing else tracks. It never asks for, reads or stores a password, and runs entirely on-device with no server and no account.",
+	"status": "active",
+	"icon": "SiTypescript",
+	"readme": true,
+	"technologies": [
+		"TypeScript",
+		"Manifest V3",
+		"Tailwind CSS",
+		"Vitest"
+	],
+	"tags": [
+		"browser-extension",
+		"privacy",
+		"security",
+		"local-first",
+		"oauth"
+	],
+	"highlights": [
+		"Answers the question a password manager cannot: which of your accounts, and which provider button, you used on this specific site.",
+		"Detects password reuse without ever handling a password, via HMAC-SHA256 fingerprints under a random 256-bit device key — unlike a bare hash, they cannot be attacked offline.",
+		"Captures OAuth sign-ins across nine providers by watching the redirect chain, then queues them for one-click confirmation rather than saving anything silently.",
+		"Off by default: capture must be switched on, and manual recording stops itself after 15 minutes.",
+		"Groups the popup by the domain you are actually on — that site, its parent and subdomains first, the rest of the vault behind a toggle."
+	],
+	"links": {
+		"repo": "https://github.com/Life-Experimentalist/LoginLens",
+		"live": "https://loginlens.vkrishna04.me"
+	},
+	"sections": [
+		{
+			"type": "prose",
+			"heading": "The problem underneath",
+			"body": "Password managers solved storage and left identity selection unsolved. Knowing the password is no help when the question is which of three Google accounts you used, or whether you signed up with the Google button at all. That information is not written down anywhere, so it is reconstructed by trial and error at every login. LoginLens records the choice at the moment it is made."
+		},
+		{
+			"type": "prose",
+			"heading": "Why reuse detection without passwords is possible",
+			"body": "Reuse detection normally requires the passwords. Hashing them is not a fix: a plain SHA-256 of a human-chosen password falls to a wordlist in seconds. Keying the hash changes that — an HMAC under a random 256-bit key generated on the device still produces equal outputs for equal inputs, which is all reuse detection needs, but the fingerprints are worthless to anyone without the key. The comparison works and the vault stays uninteresting to steal."
+		}
+	]
+}
