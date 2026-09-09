@@ -28,6 +28,12 @@ import { useStorage } from '@plasmohq/storage/hook'
 import { extensionStorage } from '../../core/storage/config'
 import { isAppPackageDomain, isLocalEnvironment, getNaturalAliases, resolveDomainPortHint, getAccountPortDetails, normalizeLocalHost, getLocalhostSubdomainHint, syncBidirectionalDomainLinks } from '../../core/utils/domain'
 import { useToast } from '~/components/ui/ToastContext'
+import {
+  dateInputToExpiry,
+  expiryToDateInput,
+  formatExpiryLabel,
+  getApiKeyExpiry
+} from '../../core/utils/api-key-expiry'
 import { AppNameDisplay } from './AppNameDisplay'
 import { FaviconImage } from './FaviconImage'
 
@@ -90,6 +96,7 @@ export const AccountModal: React.FC<AccountModalProps> = ({
   const [editApiEndpoint, setEditApiEndpoint] = useState('')
   const [editKeyScope, setEditKeyScope] = useState('')
   const [editApiKey, setEditApiKey] = useState('')
+  const [editApiExpiry, setEditApiExpiry] = useState('')
   const [editOauthPurpose, setEditOauthPurpose] = useState<'login' | 'integration'>('login')
   const [editIntegrationScope, setEditIntegrationScope] = useState('')
 
@@ -226,6 +233,10 @@ export const AccountModal: React.FC<AccountModalProps> = ({
             vault_source: editSource,
             api_endpoint: editApiEndpoint,
             key_scope: editKeyScope,
+            api_key_expiry:
+              acc.login_method.type === 'api-key'
+                ? dateInputToExpiry(editApiExpiry)
+                : acc.api_key_expiry,
             oauth_purpose: acc.login_method.type === 'oauth' ? editOauthPurpose : acc.oauth_purpose,
             integration_scope: acc.login_method.type === 'oauth' ? editIntegrationScope : acc.integration_scope,
             login_method:
@@ -735,6 +746,9 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                               )
                               setEditApiEndpoint(acc.api_endpoint || '')
                               setEditKeyScope(acc.key_scope || '')
+                              setEditApiExpiry(
+                                expiryToDateInput(acc.api_key_expiry)
+                              )
                               setEditOauthPurpose(acc.oauth_purpose || 'login')
                               setEditIntegrationScope(acc.integration_scope || '')
                             }}
@@ -912,6 +926,22 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                                       className="w-full px-2 py-1 text-xs bg-background border border-border rounded focus:outline-none focus:border-primary text-foreground"
                                     />
                                   </div>
+                                </div>
+                                <div>
+                                  <label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">
+                                    Expires On
+                                  </label>
+                                  <input
+                                    type="date"
+                                    value={editApiExpiry}
+                                    onChange={(e) =>
+                                      setEditApiExpiry(e.target.value)
+                                    }
+                                    className="w-full px-2 py-1 text-xs bg-background border border-border rounded focus:outline-none focus:border-primary text-foreground"
+                                  />
+                                  <p className="text-[10px] text-muted-foreground mt-1">
+                                    Blank means no expiry.
+                                  </p>
                                 </div>
                               </div>
                             )}
@@ -1281,6 +1311,22 @@ export const AccountModal: React.FC<AccountModalProps> = ({
                             <div className="mt-2">
                               {acc.login_method.type === 'api-key' ? (
                                 <div className="flex flex-col gap-1.5 p-2.5 bg-muted/40 rounded-lg border border-border/60">
+                                  {(() => {
+                                    const exp = getApiKeyExpiry(acc)
+                                    return (
+                                      <p
+                                        className={`text-[11px] font-semibold ${
+                                          exp.state === 'expired'
+                                            ? 'text-destructive'
+                                            : exp.state === 'soon'
+                                              ? 'text-amber-600 dark:text-amber-400'
+                                              : 'text-muted-foreground'
+                                        }`}
+                                      >
+                                        {formatExpiryLabel(exp)}
+                                      </p>
+                                    )
+                                  })()}
                                   {acc.api_endpoint && (
                                     <p className="text-[11px] text-muted-foreground break-all">
                                       <span className="font-semibold text-foreground">

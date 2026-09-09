@@ -70,6 +70,15 @@ export interface IdentityProfile {
   api_endpoint?: string // Base URL/endpoint this key is used with
   key_scope?: string // E.g., "Read-only", "Admin", "Billing"
   api_key?: string // Secret API key string stored in dedicated space
+  /**
+   * When this key stops working, as epoch milliseconds.
+   *
+   * Absent or null means no expiry, which is also what every key saved before
+   * this field existed means. There is no migration: "the field is not there"
+   * and "the user chose no expiry" are the same state on purpose, so nothing
+   * has to be rewritten and an old export stays readable.
+   */
+  api_key_expiry?: number | null
 
   /**
    * Cross-domain account linking.

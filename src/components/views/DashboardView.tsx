@@ -19,6 +19,7 @@ import { isLocalEnvironment, resolveDomainPortHint, expandLocalDevPortEntries } 
 import { useToast } from '~/components/ui/ToastContext'
 import { ExportWizardModal } from '~/components/ui/ExportWizardModal'
 import { getSnapshots, type VaultSnapshot } from '../../core/storage/snapshots'
+import { dateInputToExpiry } from '../../core/utils/api-key-expiry'
 import {
   Search,
   Plus,
@@ -142,6 +143,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [newApiEndpoint, setNewApiEndpoint] = useState('')
   const [newKeyScope, setNewKeyScope] = useState('')
   const [newApiKey, setNewApiKey] = useState('')
+  const [newApiExpiry, setNewApiExpiry] = useState('')
 
   // Vault Source state
   const [newVaultSource, setNewVaultSource] = useState('Manual Entry')
@@ -261,6 +263,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       api_endpoint: newType === 'api-key' ? newApiEndpoint.trim() : undefined,
       key_scope: newType === 'api-key' ? newKeyScope.trim() : undefined,
       api_key: newType === 'api-key' ? newApiKey.trim() : undefined,
+      api_key_expiry:
+        newType === 'api-key' ? dateInputToExpiry(newApiExpiry) : undefined,
       vault_source: newVaultSource || 'Manual Entry',
       mfa: newType === 'api-key' ? undefined : mfaConfig,
       updated_at: Date.now()
@@ -334,6 +338,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setNewApiTitle('')
     setNewApiEndpoint('')
     setNewApiKey('')
+    setNewApiExpiry('')
     showToast(`Added entry for ${cleanDomain}!`, 'success')
   }
 
@@ -944,6 +949,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         className="w-full px-3 py-2 bg-muted/50 border border-border rounded-lg text-sm focus:outline-none focus:border-primary"
                       />
                     </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground mb-1">
+                      Expires On (Optional)
+                    </label>
+                    <input
+                      type="date"
+                      value={newApiExpiry}
+                      onChange={(e) => setNewApiExpiry(e.target.value)}
+                      className="w-full px-3 py-2 bg-muted/50 border border-border rounded-lg text-sm focus:outline-none focus:border-primary"
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Leave blank for no expiry. Keys saved before this field
+                      existed have no expiry.
+                    </p>
                   </div>
                 </>
               ) : (

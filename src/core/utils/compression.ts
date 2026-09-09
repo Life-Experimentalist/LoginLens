@@ -79,6 +79,7 @@ export function minimizeVaultForSync(data: any): any {
       if (a.api_endpoint) aObj.ae = a.api_endpoint
       if (a.key_scope) aObj.ks = a.key_scope
       if (a.api_key) aObj.ak = a.api_key
+      if (typeof a.api_key_expiry === 'number') aObj.ax = a.api_key_expiry
       if (a.linked_domains?.length) aObj.ld = a.linked_domains
       if (a.dismissed_mirrors?.length) aObj.dm = a.dismissed_mirrors
       if (a.intra_domain_aliases?.length) aObj.ia = a.intra_domain_aliases
@@ -194,6 +195,7 @@ export function expandVaultFromSync(minified: any): ExpandedVault {
       api_endpoint: a.ae,
       key_scope: a.ks,
       api_key: a.ak,
+      api_key_expiry: typeof a.ax === 'number' ? a.ax : undefined,
       linked_domains: a.ld,
       dismissed_mirrors: a.dm,
       intra_domain_aliases: a.ia,
