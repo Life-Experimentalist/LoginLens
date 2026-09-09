@@ -32,6 +32,34 @@ export const getStyle: PlasmoGetStyle = () => {
 export const createShadowRoot = (host: HTMLElement) =>
   host.attachShadow({ mode: 'closed' })
 
+/**
+ * The one place that decides whether an input is part of a login. Used both to
+ * detect that this frame has a form worth docking on, and to pick a target
+ * when the user clicks Use without having focused anything.
+ */
+const isLoginField = (input: HTMLInputElement): boolean => {
+  const type = input.type.toLowerCase()
+  if (type === 'password') return true
+  if (type !== 'text' && type !== 'email') return false
+  if (type === 'email') return true
+  const name = input.name.toLowerCase()
+  const id = input.id.toLowerCase()
+  return (
+    name.includes('user') ||
+    name.includes('email') ||
+    name.includes('login') ||
+    id.includes('user') ||
+    id.includes('email')
+  )
+}
+
+const findLoginField = (root: Document): HTMLInputElement | null => {
+  const inputs = Array.from(
+    root.querySelectorAll('input')
+  ) as HTMLInputElement[]
+  return inputs.find((input) => isLoginField(input)) ?? null
+}
+
 const LoginLensOverlay = () => {
   const [savedAccounts] = useStorage<DomainEntry[]>(
     { key: 'saved_accounts', instance: extensionStorage },
@@ -43,6 +71,16 @@ const LoginLensOverlay = () => {
     isPassword: boolean
   } | null>(null)
   const [effectiveDomain, setEffectiveDomain] = useState<string | null>(null)
+  // The dock used to appear only while a login field held focus and vanished
+  // on the first scroll, so it was gone exactly when the user went looking for
+  // it. Now the presence of a login form in this frame is what keeps it up.
+  const [hasLoginForm, setHasLoginForm] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
+  // Component state, not sessionStorage: sessionStorage writes into the page's
+  // own origin, where page script can read the key back. That is an
+  // installed-marker, which is the exact thing the note below refuses to
+  // stamp. A dismissal that lasts until reload is enough.
+  const [dismissed, setDismissed] = useState(false)
 
   // NOTE: this content script runs on <all_urls>, so it deliberately does NOT
   // announce that LoginLens is installed. Stamping `data-loginlens-installed`
@@ -142,24 +180,11 @@ const LoginLensOverlay = () => {
       const target = e.target as HTMLElement
       if (target.tagName === 'INPUT') {
         const input = target as HTMLInputElement
-        const type = input.type.toLowerCase()
-        const name = input.name.toLowerCase()
-        const id = input.id.toLowerCase()
-
-        const isPassword = type === 'password'
-        const isUsername = type === 'text' || type === 'email'
-        const hasLoginKeywords =
-          name.includes('user') ||
-          name.includes('email') ||
-          name.includes('login') ||
-          id.includes('user') ||
-          id.includes('email')
-
-        if (isPassword || (isUsername && hasLoginKeywords)) {
+        if (isLoginField(input)) {
           setActiveInput({
             rect: input.getBoundingClientRect(),
             element: input,
-            isPassword
+            isPassword: input.type.toLowerCase() === 'password'
           })
         } else {
           setActiveInput(null)
@@ -167,30 +192,56 @@ const LoginLensOverlay = () => {
       }
     }
 
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        (e.target as HTMLElement).tagName !== 'INPUT' &&
-        !(e.target as HTMLElement).closest('#loginlens-shadow')
-      ) {
-        setActiveInput(null)
-      }
+    // No click-outside and no scroll teardown any more. Both cleared
+    // activeInput, which used to hide the whole dock; the dock now stays put
+    // and activeInput only says which field an autofill should land in.
+    document.addEventListener('focusin', handleFocusIn)
+    return () => document.removeEventListener('focusin', handleFocusIn)
+  }, [])
+
+  // Does this frame contain a login form? The check is per-frame rather than
+  // top-frame-only on purpose: `all_frames` is on because plenty of login
+  // forms live in an iframe, and gating on the form means a frame without one
+  // renders nothing, so there is no duplicate dock either way.
+  useEffect(() => {
+    const scan = () => {
+      if (!document.body) return
+      setHasLoginForm(Boolean(findLoginField(document)))
     }
 
-    document.addEventListener('focusin', handleFocusIn)
-    document.addEventListener('click', handleClickOutside)
+    let queued = 0
+    const debouncedScan = () => {
+      if (queued) return
+      queued = window.setTimeout(() => {
+        queued = 0
+        scan()
+      }, 400)
+    }
 
-    const handleScroll = () => setActiveInput(null)
-    window.addEventListener('scroll', handleScroll, true)
+    // run_at is document_start, so at this point there is usually no body yet.
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', scan, { once: true })
+    } else {
+      scan()
+    }
+
+    // Single-page apps swap the login form in after load, so one scan is not
+    // enough. The observer is debounced because a busy page mutates constantly.
+    const observer = new MutationObserver(debouncedScan)
+    const startObserving = () => {
+      if (document.body) observer.observe(document.body, { childList: true, subtree: true })
+    }
+    if (document.body) startObserving()
+    else document.addEventListener('DOMContentLoaded', startObserving, { once: true })
 
     return () => {
-      document.removeEventListener('focusin', handleFocusIn)
-      document.removeEventListener('click', handleClickOutside)
-      window.removeEventListener('scroll', handleScroll, true)
+      observer.disconnect()
+      if (queued) clearTimeout(queued)
     }
   }, [])
 
-  if (!activeInput) return null
   if (!effectiveDomain) return null
+  if (!hasLoginForm || dismissed) return null
 
   // Use root-domain matching via the effective domain resolved by background tracker
   const domainData = savedAccounts?.find((d) =>
@@ -199,11 +250,20 @@ const LoginLensOverlay = () => {
 
   if (!domainData || domainData.accounts.length === 0) return null
 
-  const topPos = activeInput.rect.bottom + window.scrollY + 5
-  const leftPos = activeInput.rect.left + window.scrollX
-
   const autofill = (acc: IdentityProfile) => {
     const username = acc.identities[0]
+
+    // The dock is up whether or not a field has focus, so pick one if the
+    // user clicked Use without touching the form first.
+    const fallback = findLoginField(document)
+    const target = activeInput ?? (fallback
+      ? {
+          element: fallback,
+          isPassword: fallback.type.toLowerCase() === 'password',
+          rect: fallback.getBoundingClientRect()
+        }
+      : null)
+    if (!target) return
 
     // Simulate setting value
     const setInputValue = (input: HTMLInputElement, value: string) => {
@@ -212,10 +272,10 @@ const LoginLensOverlay = () => {
       input.dispatchEvent(new Event('change', { bubbles: true }))
     }
 
-    if (activeInput.isPassword) {
+    if (target.isPassword) {
       // Find the preceding username field to fill if possible
-      setInputValue(activeInput.element, '********') // We don't store passwords yet per schema, so mockup
-      const form = activeInput.element.closest('form')
+      setInputValue(target.element, '********') // We don't store passwords yet per schema, so mockup
+      const form = target.element.closest('form')
       if (form) {
         const textInputs = Array.from(
           form.querySelectorAll('input[type="text"], input[type="email"]')
@@ -225,9 +285,9 @@ const LoginLensOverlay = () => {
         }
       }
     } else {
-      setInputValue(activeInput.element, username)
+      setInputValue(target.element, username)
       // Try to find a password field in the same form
-      const form = activeInput.element.closest('form')
+      const form = target.element.closest('form')
       if (form) {
         const passInput = form.querySelector(
           'input[type="password"]'
@@ -241,16 +301,56 @@ const LoginLensOverlay = () => {
     setActiveInput(null)
   }
 
+  // Collapsed, it is a pill in the corner rather than nothing at all, so the
+  // way back is always visible.
+  if (collapsed) {
+    return (
+      <div
+        id="loginlens-shadow"
+        className="fixed bottom-4 left-4 z-[2147483647] font-sans"
+      >
+        <button
+          onClick={() => setCollapsed(false)}
+          className="bg-card text-card-foreground border border-border shadow-2xl rounded-full pl-3 pr-3 py-2 text-xs font-semibold flex items-center gap-2 hover:border-primary/50 transition-colors"
+        >
+          LoginLens
+          <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded-full text-[10px]">
+            {domainData.accounts.length}
+          </span>
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div
       id="loginlens-shadow"
-      className="absolute z-[2147483647] bg-card text-card-foreground p-3 rounded-xl shadow-2xl font-sans text-sm border border-border mt-1 w-72"
-      style={{ top: `${topPos}px`, left: `${leftPos}px` }}
+      className="fixed bottom-4 left-4 z-[2147483647] bg-card text-card-foreground p-3 rounded-xl shadow-2xl font-sans text-sm border border-border w-72"
     >
       <div className="font-semibold mb-3 flex items-center justify-between text-muted-foreground border-b border-border pb-2">
-        <span>LoginLens</span>
-        <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-          {domainData.accounts.length} found
+        <span className="flex items-center gap-2">
+          LoginLens
+          <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+            {domainData.accounts.length} found
+          </span>
+        </span>
+        <span className="flex items-center gap-1">
+          <button
+            onClick={() => setCollapsed(true)}
+            title="Collapse"
+            aria-label="Collapse LoginLens"
+            className="px-1.5 leading-none text-muted-foreground hover:text-foreground transition-colors"
+          >
+            &minus;
+          </button>
+          <button
+            onClick={() => setDismissed(true)}
+            title="Hide until this page reloads"
+            aria-label="Hide LoginLens on this page"
+            className="px-1.5 leading-none text-muted-foreground hover:text-foreground transition-colors"
+          >
+            &times;
+          </button>
         </span>
       </div>
       <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
