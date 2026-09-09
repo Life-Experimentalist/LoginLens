@@ -97,6 +97,10 @@ function PopupContent() {
     { key: 'is_recording_oauth', instance: extensionStorage },
     false
   )
+  const [showSisterDomains] = useStorage<boolean>(
+    { key: 'show_sister_domains', instance: extensionStorage },
+    false
+  )
   const [alwaysRecordOauth] = useStorage<boolean>(
     { key: 'always_record_oauth', instance: extensionStorage },
     false
@@ -211,11 +215,19 @@ function PopupContent() {
     setSavedAccounts(syncBidirectionalDomainLinks(updated))
   }
 
+  // Matches in both directions. `matchesDomain(saved, current, true)` alone
+  // only catches saved-is-a-subdomain-of-current; standing on app.example.com
+  // with example.com saved is the far more common case and was landing in the
+  // related list, where it renders as a "link as mirror?" prompt with no copy
+  // buttons rather than as the login for this site.
+  const isThisSite = (savedDomain: string) =>
+    matchesDomain(savedDomain, effectiveDomain ?? '', true) ||
+    matchesDomain(effectiveDomain ?? '', savedDomain, true)
+
   const siteDomains =
     !searchQuery && effectiveDomain
       ? (savedAccounts ?? []).filter(
-          (item) =>
-            item.domain && matchesDomain(item.domain, effectiveDomain, true)
+          (item) => item.domain && isThisSite(item.domain)
         )
       : []
 
@@ -224,7 +236,7 @@ function PopupContent() {
   const relatedDomains = !searchQuery && effectiveDomain
     ? (savedAccounts ?? []).filter((item) => {
         if (!item.domain) return false
-        if (matchesDomain(item.domain, effectiveDomain, true)) return false
+        if (isThisSite(item.domain)) return false
         const itemRoot = getRootDomain(item.domain)
         if (rootDomain && itemRoot === rootDomain) return true
         if (
@@ -235,7 +247,11 @@ function PopupContent() {
           )
         )
           return true
+        // Shared first label: paypal.com next to paypal.me. This is a guess,
+        // not a relationship the user declared, so it stays behind a setting
+        // and is off by default. The two tiers above are exact facts.
         if (
+          showSisterDomains &&
           rootDomain &&
           rootDomain.split('.')[0].length >= 4 &&
           itemRoot.split('.')[0] === rootDomain.split('.')[0]
@@ -258,14 +274,6 @@ function PopupContent() {
       })
     : []
 
-  const otherDomains = !searchQuery
-    ? (savedAccounts ?? []).filter(
-        (item) =>
-          item.domain &&
-          !matchesDomain(item.domain, effectiveDomain ?? '', true) &&
-          !relatedDomains.some((rd) => rd.domain === item.domain)
-      )
-    : []
 
   const DomainCard = ({
     domainMap
@@ -635,30 +643,22 @@ function PopupContent() {
                 </div>
               )}
 
-              {/* All other vault logins */}
-              {otherDomains.length > 0 && (
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-0.5 mb-1.5 mt-2">
-                    Other Saved Logins
-                  </p>
-                  {otherDomains.map((d) => (
-                    <DomainCard key={d.domain} domainMap={d} />
-                  ))}
+              {/* Nothing to show. The whole vault used to be dumped here,
+                  which meant every unrelated login was on screen on every
+                  site. Search still reaches everything. */}
+              {siteDomains.length === 0 && relatedDomains.length === 0 && (
+                <div className="text-center py-8 text-xs text-muted-foreground border border-dashed border-border rounded-lg">
+                  <Shield
+                    size={24}
+                    className="mx-auto mb-2 text-muted-foreground/40"
+                  />
+                  {(savedAccounts ?? []).length === 0
+                    ? 'Vault is empty. Import a CSV in Settings.'
+                    : effectiveDomain
+                      ? `No logins saved for ${effectiveDomain}. Search to find another.`
+                      : 'Search to find a saved login.'}
                 </div>
               )}
-
-              {/* Completely empty vault */}
-              {!effectiveDomain &&
-                otherDomains.length === 0 &&
-                siteDomains.length === 0 && (
-                  <div className="text-center py-8 text-xs text-muted-foreground border border-dashed border-border rounded-lg">
-                    <Shield
-                      size={24}
-                      className="mx-auto mb-2 text-muted-foreground/40"
-                    />
-                    Vault is empty. Import a CSV in Settings.
-                  </div>
-                )}
             </>
           )}
         </div>

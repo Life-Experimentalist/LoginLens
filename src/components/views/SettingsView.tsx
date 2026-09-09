@@ -208,6 +208,10 @@ export const SettingsView: React.FC = () => {
     { key: 'dashboard_columns', instance: extensionStorage },
     3
   )
+  const [showSisterDomains, setShowSisterDomains] = useStorage<boolean>(
+    { key: 'show_sister_domains', instance: extensionStorage },
+    false
+  )
   const [suppressMfaWarnings, setSuppressMfaWarnings] = useStorage<boolean>(
     { key: 'suppress_mfa_warnings', instance: extensionStorage },
     false
@@ -649,6 +653,24 @@ export const SettingsView: React.FC = () => {
               <Toggle
                 checked={alwaysRecordOauth ?? false}
                 onChange={() => setAlwaysRecordOauth(!alwaysRecordOauth)}
+              />
+            </div>
+
+            <div className="flex justify-between items-center py-2 border-t border-border mt-2 pt-4">
+              <div>
+                <p className="font-medium text-foreground">
+                  Show Sister Domains in the Popup
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Also surface domains that merely share a first label, like
+                  paypal.me next to paypal.com. This is a guess rather than a
+                  link you made, so it is off by default. Subdomains, parent
+                  domains and domains you linked yourself always show.
+                </p>
+              </div>
+              <Toggle
+                checked={showSisterDomains ?? false}
+                onChange={() => setShowSisterDomains(!showSisterDomains)}
               />
             </div>
           </div>

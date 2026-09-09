@@ -591,6 +591,44 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true // Keep the message channel open for async response
   }
 
+  // The popup's own context call. It wants more than the origin domain:
+  // whether the tab is mid-OAuth, and both ends of the redirect, so it can
+  // say "you are signing in to X via Y". The router had no case for this, so
+  // every popup open got `undefined` back and silently fell through to the
+  // raw hostname with isOnOAuthPage stuck false.
+  //
+  // Same sender rule as GET_TAB_CONTEXT: a content script only reads its own
+  // tab, extension pages may name one.
+  if (message.type === 'GET_TAB_OAUTH_CONTEXT') {
+    const fromContentScript = Boolean(sender.tab?.id)
+    const resolveTabId = async (): Promise<number | undefined> => {
+      if (fromContentScript) return sender.tab!.id
+      if (typeof message.tabId === 'number') return message.tabId
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
+      return tabs[0]?.id
+    }
+
+    resolveTabId().then(async (id) => {
+      if (!id) {
+        sendResponse(null)
+        return
+      }
+      const state = await getTabState(id)
+      if (!state) {
+        sendResponse(null)
+        return
+      }
+      sendResponse({
+        effectiveDomain: state.originDomain,
+        isOnOAuthPage: !!state.isOnOAuthPage,
+        currentDomain: state.currentDomain ?? null,
+        originDomain: state.originDomain ?? null
+      })
+    })
+
+    return true
+  }
+
   if (message.type === 'SET_OAUTH_IDENTITY') {
     const tabId = sender?.tab?.id
     // The identity is scraped out of page-controlled DOM — on Microsoft it is a
