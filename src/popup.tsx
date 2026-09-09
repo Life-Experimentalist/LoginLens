@@ -14,7 +14,8 @@ import {
   Layout,
   Lock,
   Smartphone,
-  Globe
+  Globe,
+  Plus
 } from 'lucide-react'
 import iconUrl from 'url:~/assets/ui/icon.png'
 import type { DomainEntry, PendingOAuthCapture } from './core/storage/schema'
@@ -181,6 +182,17 @@ function PopupContent() {
     if (typeof chrome !== 'undefined' && chrome.tabs) {
       chrome.tabs.create({ url: './tabs/vault.html' })
     }
+  }
+
+  // Opens the dashboard with the add form already open and the domain field
+  // filled in with wherever the user currently is. The field stays editable —
+  // this is a head start, not a lock.
+  const openAddForSite = () => {
+    if (typeof chrome === 'undefined' || !chrome.tabs) return
+    const suffix = effectiveDomain
+      ? `?add=${encodeURIComponent(effectiveDomain)}`
+      : ''
+    chrome.tabs.create({ url: `./tabs/vault.html#dashboard${suffix}` })
   }
 
   const handleLinkMirrorDomain = (targetDomain: string, newMirrorDomain: string) => {
@@ -678,6 +690,13 @@ function PopupContent() {
             )}
           </>
         )}
+        <button
+          onClick={openAddForSite}
+          className="w-full py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm"
+        >
+          <Plus size={14} />
+          {effectiveDomain ? `Add login for ${effectiveDomain}` : 'Add a login'}
+        </button>
         <button
           onClick={openVault}
           className="w-full py-2 bg-muted text-foreground hover:bg-muted/80 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-2 shadow-sm"

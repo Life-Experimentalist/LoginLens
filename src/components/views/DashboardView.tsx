@@ -15,7 +15,7 @@ import type {
   IdentityProfile,
   GlobalMFAAuthenticator
 } from '../../core/storage/schema'
-import { isLocalEnvironment, resolveDomainPortHint, expandLocalDevPortEntries } from '~/core/utils/domain'
+import { isLocalEnvironment, resolveDomainPortHint, expandLocalDevPortEntries, extractDomain } from '~/core/utils/domain'
 import { useToast } from '~/components/ui/ToastContext'
 import { ExportWizardModal } from '~/components/ui/ExportWizardModal'
 import { getSnapshots, type VaultSnapshot } from '../../core/storage/snapshots'
@@ -185,6 +185,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     else if (filterType === 'api-key') setNewType('api-key')
     setIsAddModalOpen(true)
   }
+
+  // The popup links here as `#dashboard?add=<domain>` so the add form opens
+  // already pointed at the site the user was on. Runs once: the param is
+  // stripped straight away so a refresh does not reopen the form, and the
+  // value goes through extractDomain because the vault page is reachable by
+  // URL and the hash is not a trusted channel.
+  useEffect(() => {
+    const hash = window.location.hash.replace('#', '')
+    const [view, query] = hash.split('?')
+    if (!query) return
+    const requested = new URLSearchParams(query).get('add')
+    history.replaceState(null, '', `#${view || 'dashboard'}`)
+    if (!requested) return
+    const domain = extractDomain(requested).slice(0, 253).trim()
+    if (!domain) return
+    setNewDomain(domain)
+    handleOpenAddModal()
+  }, [])
 
   const selectedData = expandedAccounts?.find((d) => d.domain === selectedDomain)
 
