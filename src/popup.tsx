@@ -25,6 +25,12 @@ import {
   isAppPackageDomain,
   syncBidirectionalDomainLinks
 } from './core/utils/domain'
+import {
+  RECENT_DOMAINS_KEY,
+  selectRecentDomains,
+  type RecentDomains,
+  type RecentOrder
+} from './core/utils/recent-domains'
 import { safeSendMessage } from './core/utils/runtime'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import '~/style.css'
@@ -96,6 +102,18 @@ function PopupContent() {
   const [isRecording, setIsRecording] = useStorage<boolean>(
     { key: 'is_recording_oauth', instance: extensionStorage },
     false
+  )
+  const [recentDomainsStore] = useStorage<RecentDomains>(
+    { key: RECENT_DOMAINS_KEY, instance: extensionStorage },
+    {}
+  )
+  const [recentOrder] = useStorage<RecentOrder>(
+    { key: 'recent_domains_order', instance: extensionStorage },
+    'recent'
+  )
+  const [recentCount] = useStorage<number>(
+    { key: 'recent_domains_count', instance: extensionStorage },
+    5
   )
   const [showSisterDomains] = useStorage<boolean>(
     { key: 'show_sister_domains', instance: extensionStorage },
@@ -274,6 +292,19 @@ function PopupContent() {
       })
     : []
 
+
+  const recentDomains = !searchQuery
+    ? selectRecentDomains(
+        savedAccounts,
+        recentDomainsStore,
+        recentOrder ?? 'recent',
+        recentCount ?? 5,
+        [
+          ...siteDomains.map((d) => d.domain),
+          ...relatedDomains.map((d) => d.domain)
+        ]
+      )
+    : []
 
   const DomainCard = ({
     domainMap
@@ -643,10 +674,29 @@ function PopupContent() {
                 </div>
               )}
 
+              {/* A short list instead of the whole vault, so the popup is
+                  still useful on a site with nothing saved. */}
+              {recentDomains.length > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-0.5 mb-1.5 mt-2">
+                    {recentOrder === 'alphabetical'
+                      ? 'All Saved Logins'
+                      : recentOrder === 'accounts'
+                        ? 'Most Accounts'
+                        : 'Recently Used'}
+                  </p>
+                  {recentDomains.map((d) => (
+                    <DomainCard key={d.domain} domainMap={d} />
+                  ))}
+                </div>
+              )}
+
               {/* Nothing to show. The whole vault used to be dumped here,
                   which meant every unrelated login was on screen on every
                   site. Search still reaches everything. */}
-              {siteDomains.length === 0 && relatedDomains.length === 0 && (
+              {siteDomains.length === 0 &&
+                relatedDomains.length === 0 &&
+                recentDomains.length === 0 && (
                 <div className="text-center py-8 text-xs text-muted-foreground border border-dashed border-border rounded-lg">
                   <Shield
                     size={24}

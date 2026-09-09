@@ -29,6 +29,11 @@ import type {
   PendingOAuthCapture
 } from '../core/storage/schema'
 import { hasSavedOAuthAccount } from '../core/utils/oauth-dedup'
+import {
+  RECENT_DOMAINS_KEY,
+  recordDomainVisit,
+  type RecentDomains
+} from '../core/utils/recent-domains'
 import { log } from '../core/utils/logger'
 import { pushToCloudSync } from '../core/utils/cloud-sync'
 import { createSnapshot } from '../core/storage/snapshots'
@@ -293,6 +298,25 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, _tab) => {
 
   const newDomain = getHostname(url)
   if (!newDomain) return
+
+  // Note the visit, but only if this domain already has a vault entry. See
+  // recordDomainVisit: this file must never become a record of where the user
+  // browsed, only of which of their own saved logins they reached for last.
+  try {
+    const savedForRecents =
+      await nativeStorage.get<DomainEntry[]>('saved_accounts')
+    const currentRecents =
+      await nativeStorage.get<RecentDomains>(RECENT_DOMAINS_KEY)
+    const nextRecents = recordDomainVisit(
+      Array.isArray(savedForRecents) ? savedForRecents : [],
+      currentRecents,
+      newDomain,
+      Date.now()
+    )
+    if (nextRecents) await nativeStorage.set(RECENT_DOMAINS_KEY, nextRecents)
+  } catch (err) {
+    log.debug('Could not record the recent-domain visit', err)
+  }
 
   const oauthPage = isOAuthPage(url)
   const existing = await getTabState(tabId)

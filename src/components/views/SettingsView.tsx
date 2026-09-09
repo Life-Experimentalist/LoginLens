@@ -59,6 +59,7 @@ import {
   FAVICON_SOURCE_KEY,
   type FaviconSource
 } from '~/components/ui/FaviconImage'
+import type { RecentOrder } from '~/core/utils/recent-domains'
 import { CSVImportModal } from '~/components/ui/CSVImportModal'
 import { ExportWizardModal } from '~/components/ui/ExportWizardModal'
 import { getExtensionVersion } from '../../core/utils/runtime'
@@ -207,6 +208,14 @@ export const SettingsView: React.FC = () => {
   const [dashboardColumns, setDashboardColumns] = useStorage<number>(
     { key: 'dashboard_columns', instance: extensionStorage },
     3
+  )
+  const [recentOrder, setRecentOrder] = useStorage<RecentOrder>(
+    { key: 'recent_domains_order', instance: extensionStorage },
+    'recent'
+  )
+  const [recentCount, setRecentCount] = useStorage<number>(
+    { key: 'recent_domains_count', instance: extensionStorage },
+    5
   )
   const [showSisterDomains, setShowSisterDomains] = useStorage<boolean>(
     { key: 'show_sister_domains', instance: extensionStorage },
@@ -543,6 +552,62 @@ export const SettingsView: React.FC = () => {
                     {n}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            <div className="py-2 border-t border-border pt-4">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="font-medium text-foreground">
+                    Popup Suggestions
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    What the popup lists below the current site. Recently used
+                    only counts domains already in your vault, so this never
+                    becomes a record of where you browsed.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 bg-muted p-1 rounded-lg border border-border shrink-0">
+                  {(
+                    [
+                      ['recent', 'Recent'],
+                      ['alphabetical', 'A-Z'],
+                      ['accounts', 'Most']
+                    ] as [RecentOrder, string][]
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      onClick={() => setRecentOrder(value)}
+                      className={`px-3 py-1.5 text-xs rounded-md font-bold transition-colors ${
+                        (recentOrder ?? 'recent') === value
+                          ? 'bg-background text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-between items-center mt-3">
+                <p className="text-sm text-muted-foreground">
+                  How many to show
+                </p>
+                <div className="flex items-center gap-2 bg-muted p-1 rounded-lg border border-border">
+                  {[0, 3, 5, 10].map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => setRecentCount(n)}
+                      className={`w-9 py-1.5 text-xs rounded-md font-bold transition-colors ${
+                        (recentCount ?? 5) === n
+                          ? 'bg-background text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {n === 0 ? 'Off' : n}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
