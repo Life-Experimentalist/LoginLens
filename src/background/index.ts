@@ -23,11 +23,12 @@ import {
 } from '../core/utils/domain'
 import { isCorruptedSentinel, nativeStorage } from '../core/storage/native'
 import type {
-  // DomainEntry,
+  DomainEntry,
   // IdentityProfile,
   GlobalOAuthAccount,
   PendingOAuthCapture
 } from '../core/storage/schema'
+import { hasSavedOAuthAccount } from '../core/utils/oauth-dedup'
 import { log } from '../core/utils/logger'
 import { pushToCloudSync } from '../core/utils/cloud-sync'
 import { createSnapshot } from '../core/storage/snapshots'
@@ -429,6 +430,24 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, _tab) => {
         try {
           const identityString = existing.oauthIdentity!
 
+          // 0. Already in the vault? Then this is the user signing back into a
+          // site they saved long ago, not a new connection to record. Without
+          // this the same capture is re-queued on every single login.
+          const rawSaved =
+            await nativeStorage.get<DomainEntry[]>('saved_accounts')
+          const alreadySaved = hasSavedOAuthAccount(
+            Array.isArray(rawSaved) ? rawSaved : [],
+            originSite,
+            providerSite,
+            identityString
+          )
+
+          if (alreadySaved) {
+            log.debug(
+              `Ignoring duplicate OAuth capture: ${identityString} via ${providerSite} is already saved for ${originSite}`
+            )
+          }
+
           // 1. Push to pending queue (filtered for clean identities)
           const rawPending = await nativeStorage.get<PendingOAuthCapture[]>(
             'pending_oauth_captures'
@@ -451,7 +470,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, _tab) => {
               p.identity === identityString
           )
 
-          if (!pendingExists) {
+          if (!pendingExists && !alreadySaved) {
             cleanedPending.push({
               id:
                 typeof crypto !== 'undefined' && crypto.randomUUID
