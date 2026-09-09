@@ -41,7 +41,6 @@ const isLoginField = (input: HTMLInputElement): boolean => {
   const type = input.type.toLowerCase()
   if (type === 'password') return true
   if (type !== 'text' && type !== 'email') return false
-  if (type === 'email') return true
   const name = input.name.toLowerCase()
   const id = input.id.toLowerCase()
   return (

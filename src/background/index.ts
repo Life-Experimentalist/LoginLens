@@ -302,21 +302,27 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, _tab) => {
   // Note the visit, but only if this domain already has a vault entry. See
   // recordDomainVisit: this file must never become a record of where the user
   // browsed, only of which of their own saved logins they reached for last.
-  try {
-    const savedForRecents =
-      await nativeStorage.get<DomainEntry[]>('saved_accounts')
-    const currentRecents =
-      await nativeStorage.get<RecentDomains>(RECENT_DOMAINS_KEY)
-    const nextRecents = recordDomainVisit(
-      Array.isArray(savedForRecents) ? savedForRecents : [],
-      currentRecents,
-      newDomain,
-      Date.now()
-    )
-    if (nextRecents) await nativeStorage.set(RECENT_DOMAINS_KEY, nextRecents)
-  } catch (err) {
-    log.debug('Could not record the recent-domain visit', err)
-  }
+  //
+  // Deliberately not awaited. It needs nothing from the OAuth handling below
+  // and the OAuth path is already racing redirect hops, so two extra storage
+  // reads in front of it would only widen that window.
+  void (async () => {
+    try {
+      const savedForRecents =
+        await nativeStorage.get<DomainEntry[]>('saved_accounts')
+      const currentRecents =
+        await nativeStorage.get<RecentDomains>(RECENT_DOMAINS_KEY)
+      const nextRecents = recordDomainVisit(
+        Array.isArray(savedForRecents) ? savedForRecents : [],
+        currentRecents,
+        newDomain,
+        Date.now()
+      )
+      if (nextRecents) await nativeStorage.set(RECENT_DOMAINS_KEY, nextRecents)
+    } catch (err) {
+      log.debug('Could not record the recent-domain visit', err)
+    }
+  })()
 
   const oauthPage = isOAuthPage(url)
   const existing = await getTabState(tabId)

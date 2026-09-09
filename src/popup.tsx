@@ -207,8 +207,8 @@ function PopupContent() {
   }
 
   // Opens the dashboard with the add form already open and the domain field
-  // filled in with wherever the user currently is. The field stays editable —
-  // this is a head start, not a lock.
+  // filled in with wherever the user currently is. The field stays editable,
+  // this is a head start rather than a lock.
   const openAddForSite = () => {
     if (typeof chrome === 'undefined' || !chrome.tabs) return
     const suffix = effectiveDomain
@@ -680,7 +680,7 @@ function PopupContent() {
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-0.5 mb-1.5 mt-2">
                     {recentOrder === 'alphabetical'
-                      ? 'All Saved Logins'
+                      ? 'Saved Logins'
                       : recentOrder === 'accounts'
                         ? 'Most Accounts'
                         : 'Recently Used'}
