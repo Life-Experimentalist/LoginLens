@@ -43,6 +43,7 @@
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit"
   },
+  "browserslist": ["last 1 Chrome version"],
   "engines": {
     "node": ">=22",
     "npm": ">=11"
