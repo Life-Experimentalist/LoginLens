@@ -36,6 +36,8 @@
     "build:safari": "cross-env NODE_OPTIONS=--no-deprecation plasmo build --target=safari-mv3",
     "package": "cross-env NODE_OPTIONS=--no-deprecation plasmo package",
     "assets": "node scripts/build-ui-assets.mjs",
+    "vault:backup": "node scripts/vault-backup.mjs",
+    "vault:restore": "node scripts/vault-restore.mjs",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "format": "prettier --write \"src/**/*.{ts,tsx}\"",
     "test": "vitest run",

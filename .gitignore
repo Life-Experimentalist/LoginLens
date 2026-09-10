@@ -13,3 +13,6 @@ ignore.devprune.json
 .agents/
 .remember/
 .vscode/
+
+# Per-machine Claude Code permissions. .claude/settings.json is the shared one.
+.claude/settings.local.json
