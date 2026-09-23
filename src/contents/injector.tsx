@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import type { PlasmoCSConfig, PlasmoGetStyle } from 'plasmo'
 import { useStorage } from '@plasmohq/storage/hook'
 import { extensionStorage } from '../core/storage/config'
-import { isHostOrSubdomainOf, matchesDomain } from '../core/utils/domain'
+import { extractDomain, isHostOrSubdomainOf, matchesDomain } from '../core/utils/domain'
 import { safeSendMessage } from '../core/utils/runtime'
 import cssText from 'data-text:~/style.css'
 import type { DomainEntry, IdentityProfile } from '../core/storage/schema'
@@ -114,7 +114,12 @@ const LoginLensOverlay = () => {
         if (response?.effectiveDomain) {
           setEffectiveDomain(response.effectiveDomain)
         } else {
-          setEffectiveDomain(window.location.hostname.replace(/^www\./, ''))
+          // Same derivation the background uses, so the fallback cannot
+          // disagree with it. Stripping www. by hand dropped the port, and a
+          // self-hosted box runs several services on one hostname: the
+          // overlay would have offered `pulseward:9090`'s login on
+          // `pulseward:4180`.
+          setEffectiveDomain(extractDomain(window.location.href))
         }
       }
     )

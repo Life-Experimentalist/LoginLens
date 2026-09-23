@@ -24,6 +24,13 @@ rather than a diff against an earlier version.
   reuse warnings between them stop being noise.
 - **Provenance.** Each entry records where it came from — a Chrome export, an
   Edge export, an OAuth capture, or you.
+- **Services on your own network are first class.** A dev server, a NAS, a
+  router, or a self-hosted app behind a reverse proxy such as
+  `https://pulseward:4180/` keeps its port as part of the entry, so one box
+  running a dozen services is a dozen logins and not one. Such a host is never
+  looked up remotely and is never filed under a public root domain, because it
+  does not have one. Entries saved before this keep working: a stored hostname
+  with no port still answers for that host on a port.
 
 ### Passwords are never stored
 
@@ -100,7 +107,8 @@ rather than a diff against an earlier version.
   host permissions.** CI fails the build if that set changes.
 - Favicons are generated locally from the domain name. Fetching real icons from
   Google is available in Settings and is opt-in, because the domain would travel
-  in the request URL.
+  in the request URL. Hosts on your own machine or your own network are never
+  sent even with the opt-in on.
 - Diagnostic logs redact usernames, emails, API keys, and anything under a
   secret-looking key before an entry is written, and are capped at 500 entries.
 - The OAuth registry is capped at 500 entries so a hostile page cannot fill the

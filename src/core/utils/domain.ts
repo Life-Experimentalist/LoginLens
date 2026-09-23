@@ -134,6 +134,10 @@ const COMMON_WEB_TLDS = new Set([
 
 export function isAppPackageDomain(input: string): boolean {
   if (!input || input.startsWith('http') || input.includes('://')) return false
+  // A private-network host is never a bundle ID, and several read like one:
+  // `dev` and `io` are reverse-DNS prefixes, so `dev.local` and `io.lan` used
+  // to come back true and get a phone icon, exempt from every hostname rule.
+  if (isLocalEnvironment(input)) return false
   const parts = input.toLowerCase().split('.')
   if (parts.length < 2) return false
 
@@ -172,6 +176,9 @@ export function isAppPackageDomain(input: string): boolean {
  *
  * If `allowSubdomains` is true, a saved domain like `dash.cloudflare.com` will match
  * if the effectiveHostname is `cloudflare.com`.
+ *
+ * A portless private-network entry also matches the same host on a port, in
+ * that direction only. See the comment at the check itself.
  */
 export function matchesDomain(
   savedDomain: string,
@@ -187,6 +194,24 @@ export function matchesDomain(
   const effective = normalize(effectiveHostname)
 
   if (saved === effective) return true
+
+  // Ports only became part of a stored private host once two services on one
+  // box had to be told apart, so everything saved before that is a bare
+  // hostname. A portless private host therefore still answers for the same
+  // host on a port, or the overlay would quietly stop recognising every
+  // self-hosted login already in the vault.
+  //
+  // One direction only, and nothing to do with allowSubdomains: a saved
+  // `pulseward:4180` names one specific service and must not answer for
+  // `pulseward:9090`. Public hosts are excluded because they are never stored
+  // with a port in the first place.
+  if (
+    !saved.includes(':') &&
+    effective.startsWith(saved + ':') &&
+    isLocalEnvironment(saved)
+  ) {
+    return true
+  }
 
   if (allowSubdomains) {
     // If we are on cloudflare.com, we should see dash.cloudflare.com
@@ -240,6 +265,15 @@ export const KNOWN_PORTS: Record<string, string> = {
   '3030': 'Figma / Grafana / Parse',
   '31580': 'Kubernetes NodePort Service',
 
+  // Self-hosted & Homelab
+  '81': 'Nginx Proxy Manager',
+  '4180': 'oauth2-proxy',
+  '8006': 'Proxmox VE',
+  '8096': 'Jellyfin',
+  '8123': 'Home Assistant',
+  '9091': 'Authelia / Transmission',
+  '32400': 'Plex Media Server',
+
   // Miscs
   '22': 'SSH',
   '21': 'FTP',
@@ -292,7 +326,12 @@ export function extractAccountPort(acc: { label?: string; api_endpoint?: string;
     ...(acc.identities || [])
   ].filter(Boolean).join(' ')
 
-  const urlMatch = textToScan.match(/(?:localhost|127\.0\.0\.1|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d{2,5})/i) || textToScan.match(/Port:\s*(\d{2,5})/i)
+  const urlMatch =
+    textToScan.match(/(?:localhost|127\.0\.0\.1|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):(\d{2,5})/i) ||
+    // A self-hosted service is reached by name, not by IP: the pattern above
+    // never saw `http://pulseward:4180` in a note.
+    textToScan.match(/\bhttps?:\/\/[a-z0-9.-]+:(\d{2,5})/i) ||
+    textToScan.match(/Port:\s*(\d{2,5})/i)
   if (urlMatch && urlMatch[1]) return urlMatch[1]
 
   return null
@@ -411,28 +450,98 @@ export function getNaturalAliases(domain: string): string[] {
 }
 
 /**
- * Checks if a domain string represents a local development environment.
- * Examples: localhost, 127.0.0.1, 192.168.1.5, [::1], tauri.localhost, wails.localhost
+ * DNS suffixes that cannot exist on the public internet. A host under one of
+ * these is on the user's own network by definition: nobody can register them,
+ * and no public resolver answers for them.
+ *
+ * `.test` is RFC 2606, `.local` is mDNS (RFC 6762), `.home.arpa` is RFC 8375.
+ * The rest are what routers, NAS boxes and corporate DHCP hand out in
+ * practice. `.ts.net` is deliberately absent: it is a real registered domain
+ * and its names do resolve publicly.
  */
-export function isLocalEnvironment(hostname: string): boolean {
-  if (!hostname) return false
+const PRIVATE_DNS_SUFFIXES = [
+  '.local',
+  '.home.arpa',
+  '.home',
+  '.lan',
+  '.internal',
+  '.intranet',
+  '.corp',
+  '.localdomain',
+  '.test'
+]
+
+export type HostKind = 'loopback' | 'private-ip' | 'lan' | 'public'
+
+/**
+ * Classifies a host as this machine, this network, or the public internet.
+ * Display only: it exists so a card can say "dev server" rather than "LAN
+ * box". Everything that has to make a decision uses isLocalEnvironment.
+ */
+export function hostKind(hostname: string): HostKind {
+  if (!hostname) return 'public'
   const trimmed = hostname.toLowerCase().trim()
   // An IPv6 literal is bracketed and the brackets contain colons. Splitting on
   // ':' to drop the port turned "[::1]" into "[", so the loopback test below
   // could never fire for IPv6 despite explicitly checking for it.
-  const lower = trimmed.startsWith('[')
+  let host = trimmed.startsWith('[')
     ? trimmed.slice(0, trimmed.indexOf(']') + 1) || trimmed
     : trimmed.split(':')[0]
-  if (lower === 'localhost') return true
-  if (lower === '127.0.0.1' || lower === '[::1]') return true
+  // A fully qualified name may carry the root dot. "pulseward." is "pulseward".
+  if (host.length > 1 && host.endsWith('.')) host = host.slice(0, -1)
+  if (!host) return 'public'
+
+  if (host === 'localhost') return 'loopback'
   // *.localhost subdomains (tauri.localhost, wails.localhost, etc.)
-  if (lower.endsWith('.localhost')) return true
-  
-  if (/^192\.168\.\d+\.\d+$/.test(lower)) return true
-  if (/^10\.\d+\.\d+\.\d+$/.test(lower)) return true
-  if (/^172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+$/.test(lower)) return true
-  
-  return false
+  if (host.endsWith('.localhost')) return 'loopback'
+  if (host === '[::1]') return 'loopback'
+  if (/^127\.\d+\.\d+\.\d+$/.test(host)) return 'loopback'
+
+  if (/^192\.168\.\d+\.\d+$/.test(host)) return 'private-ip'
+  if (/^10\.\d+\.\d+\.\d+$/.test(host)) return 'private-ip'
+  if (/^172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+$/.test(host)) return 'private-ip'
+  // Link-local, RFC 3927.
+  if (/^169\.254\.\d+\.\d+$/.test(host)) return 'private-ip'
+  // 100.64.0.0/10, RFC 6598. Carrier NAT on paper, and the range Tailscale
+  // hands out in practice, so a host here is reachable only from this network.
+  if (/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d+\.\d+$/.test(host)) return 'private-ip'
+  if (host === '0.0.0.0') return 'private-ip'
+  // IPv6 unique-local fc00::/7 and link-local fe80::/10.
+  if (/^\[f[cd][0-9a-f]{2}:/.test(host)) return 'private-ip'
+  if (/^\[fe[89ab][0-9a-f]:/.test(host)) return 'private-ip'
+  // Any other IPv6 literal is a public address. Checked here because the
+  // dotless test below would otherwise read every one of them as a LAN name.
+  if (host.startsWith('[')) return 'public'
+
+  for (const suffix of PRIVATE_DNS_SUFFIXES) {
+    if (host.endsWith(suffix)) return 'lan'
+  }
+  // No dot means no public DNS can resolve it: a single-label name is answered
+  // by this machine's hosts file, its DNS search domain, or mDNS. This is the
+  // shape a self-hosted service actually has, `https://pulseward:4180/`.
+  if (!host.includes('.')) return 'lan'
+
+  return 'public'
+}
+
+/**
+ * Checks whether a host is on this machine or this network rather than the
+ * public internet: a dev server, a NAS, a router, a self-hosted service behind
+ * a reverse proxy.
+ *
+ * Examples: localhost, 127.0.0.1, [::1], tauri.localhost, 192.168.1.5,
+ * pulseward:4180, nas.local, jira.corp.internal.
+ *
+ * Three things hang off this one answer, which is why it is a single predicate
+ * and not several:
+ *  - the port stays part of the stored domain, because one box routinely runs
+ *    a dozen services and they are not the same login;
+ *  - no favicon is ever fetched, because the query string would hand a third
+ *    party the shape of a network it cannot otherwise see;
+ *  - no automatic link to a root domain, because there is no root to link to.
+ */
+export function isLocalEnvironment(hostname: string): boolean {
+  return hostKind(hostname) !== 'public'
 }
 
 /**
@@ -513,6 +622,11 @@ export function getRootDomain(input: string): string {
       }
     }
     hostname = hostname.replace(/^www\./, '')
+    // A private host has no eTLD+1 to reduce to. The label arithmetic below ran
+    // anyway and glued the port onto the wrong labels, so
+    // `jira.corp.internal:8443` came back as `corp.internal:8443` and grouped
+    // under a root that does not exist.
+    if (isLocalEnvironment(hostname)) return hostname
     const parts = hostname.split('.')
     if (parts.length <= 2) return hostname
 

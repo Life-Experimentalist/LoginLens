@@ -11,6 +11,7 @@ import {
   getNaturalAliases,
   getPortHint,
   getRootDomain,
+  hostKind,
   isAppPackageDomain,
   isLocalEnvironment,
   isNonOriginDomain,
@@ -60,6 +61,16 @@ describe('isAppPackageDomain', () => {
     expect(isAppPackageDomain('localhost')).toBe(false)
     expect(isAppPackageDomain('')).toBe(false)
   })
+
+  it('does not mistake a private-network host for a bundle ID', () => {
+    // `dev`, `io` and `me` are reverse-DNS prefixes, so a NAS at `dev.local`
+    // matched the bundle-ID heuristic: phone icon, and exempt from every
+    // hostname rule below.
+    expect(isAppPackageDomain('dev.local')).toBe(false)
+    expect(isAppPackageDomain('dev.local:5000')).toBe(false)
+    expect(isAppPackageDomain('io.lan')).toBe(false)
+    expect(isAppPackageDomain('me.home')).toBe(false)
+  })
 })
 
 describe('matchesDomain', () => {
@@ -82,6 +93,26 @@ describe('matchesDomain', () => {
     expect(matchesDomain('cloudflare.com', 'dash.cloudflare.com', true)).toBe(false)
     expect(matchesDomain('a.example.com', 'b.example.com', true)).toBe(false)
   })
+
+  it('lets a portless private-network entry match the same host on a port', () => {
+    // Everything saved for `pulseward` before ports were kept was stored
+    // without one. Those entries have to keep matching, or the overlay stops
+    // recognising every self-hosted login the user already had.
+    expect(matchesDomain('pulseward', 'pulseward:4180')).toBe(true)
+    expect(matchesDomain('localhost', 'localhost:3000')).toBe(true)
+    expect(matchesDomain('nas.local', 'nas.local:5000')).toBe(true)
+  })
+
+  it('never matches across two different ports on the same host', () => {
+    // Two services on one box are two different logins.
+    expect(matchesDomain('pulseward:4180', 'pulseward:9090')).toBe(false)
+    // A saved port names a specific service, so it does not answer for the
+    // bare host either.
+    expect(matchesDomain('pulseward:4180', 'pulseward')).toBe(false)
+    // Public hosts are never stored with a port, so this stays a non-match
+    // rather than quietly widening what a saved entry answers for.
+    expect(matchesDomain('example.com', 'example.com:8443')).toBe(false)
+  })
 })
 
 describe('extractDomain', () => {
@@ -95,6 +126,15 @@ describe('extractDomain', () => {
     expect(extractDomain('http://localhost:5173/app')).toBe('localhost:5173')
     expect(extractDomain('http://127.0.0.1:8000')).toBe('127.0.0.1:8000')
     expect(extractDomain('https://example.com:8443/app')).toBe('example.com')
+  })
+
+  it('keeps the port for a self-hosted host, so two services do not collide', () => {
+    // Without this, pulseward:4180 and pulseward:9090 both store as
+    // `pulseward` and the second login lands on the first one's card.
+    expect(extractDomain('https://pulseward:4180/')).toBe('pulseward:4180')
+    expect(extractDomain('http://pulseward:9090/graph')).toBe('pulseward:9090')
+    expect(extractDomain('https://nas.local:5000/')).toBe('nas.local:5000')
+    expect(extractDomain('http://192.168.1.50:8123/lovelace')).toBe('192.168.1.50:8123')
   })
 
   it('falls back to a best-effort parse on malformed input', () => {
@@ -117,6 +157,16 @@ describe('getRootDomain', () => {
   it('returns app package names untouched', () => {
     expect(getRootDomain('com.example.myapp')).toBe('com.example.myapp')
   })
+
+  it('returns private-network hosts untouched, port included', () => {
+    // A LAN host has no eTLD+1 to reduce to. The label arithmetic ran anyway
+    // and glued the port onto the wrong labels, so `jira.corp.internal:8443`
+    // came back as `corp.internal:8443`, grouped under a root that is not one.
+    expect(getRootDomain('pulseward:4180')).toBe('pulseward:4180')
+    expect(getRootDomain('jira.corp.internal:8443')).toBe('jira.corp.internal:8443')
+    expect(getRootDomain('nas.local')).toBe('nas.local')
+    expect(getRootDomain('https://pulseward:4180/x')).toBe('pulseward:4180')
+  })
 })
 
 describe('isLocalEnvironment', () => {
@@ -136,10 +186,83 @@ describe('isLocalEnvironment', () => {
     }
   })
 
+  it('recognises a self-hosted box addressed by its bare name', () => {
+    // The shape a homelab or office service actually has: one label, no TLD,
+    // usually a non-standard port. There is no public host without a dot, so
+    // a dotless name is always somewhere on this network.
+    for (const host of ['pulseward', 'pulseward:4180', 'pulseward.', 'nas', 'router:8006']) {
+      expect(isLocalEnvironment(host), host).toBe(true)
+    }
+  })
+
+  it('recognises the reserved private-network suffixes', () => {
+    for (const host of [
+      'nas.local',
+      'nas.local:5000',
+      'pihole.lan',
+      'git.internal',
+      'router.home.arpa',
+      'printer.home',
+      'jira.corp',
+      'wiki.intranet',
+      'box.localdomain',
+      'app.test'
+    ]) {
+      expect(isLocalEnvironment(host), host).toBe(true)
+    }
+  })
+
+  it('recognises link-local, CGNAT and private IPv6 addresses', () => {
+    for (const host of [
+      '169.254.10.1',
+      '100.64.0.1',
+      '100.100.1.5',
+      '100.127.255.254',
+      '0.0.0.0',
+      '[fd00::1]',
+      '[fc00::5]',
+      '[fe80::1ff:fe23:4567:890a]'
+    ]) {
+      expect(isLocalEnvironment(host), host).toBe(true)
+    }
+  })
+
   it('does not treat public hosts or near-miss ranges as local', () => {
-    for (const host of ['github.com', 'notlocalhost.com', '172.15.0.1', '172.32.0.1', '']) {
+    for (const host of [
+      'github.com',
+      'notlocalhost.com',
+      '172.15.0.1',
+      '172.32.0.1',
+      '',
+      // A reserved suffix only counts as the whole suffix. Anyone can register
+      // these, and reading them as LAN would shelve a real site under the
+      // local section and skip its favicon lookup.
+      'pulseward.example.com',
+      'local.example.com',
+      'internal.example.com',
+      'mytest.com',
+      // Just outside 100.64.0.0/10 and 169.254.0.0/16.
+      '100.63.255.255',
+      '100.128.0.1',
+      '169.253.0.1',
+      // Not link-local: fe80::/10 stops at febf.
+      '[fec0::1]'
+    ]) {
       expect(isLocalEnvironment(host), host).toBe(false)
     }
+  })
+})
+
+describe('hostKind', () => {
+  it('separates this machine from this network from the public internet', () => {
+    expect(hostKind('localhost:3000')).toBe('loopback')
+    expect(hostKind('127.0.0.1')).toBe('loopback')
+    expect(hostKind('tauri.localhost')).toBe('loopback')
+    expect(hostKind('192.168.1.5')).toBe('private-ip')
+    expect(hostKind('[fd00::1]')).toBe('private-ip')
+    expect(hostKind('pulseward:4180')).toBe('lan')
+    expect(hostKind('nas.local')).toBe('lan')
+    expect(hostKind('github.com')).toBe('public')
   })
 })
 
@@ -162,6 +285,7 @@ describe('local development helpers', () => {
 
   it('names well-known ports and falls back for the rest', () => {
     expect(getPortHint(5173)).toBe('Vite Default')
+    expect(getPortHint('4180')).toBe('oauth2-proxy')
     expect(getPortHint('5432')).toBe('PostgreSQL')
     expect(getPortHint(64123)).toBe('Custom Port')
   })
@@ -194,7 +318,14 @@ describe('local development helpers', () => {
         ]
       },
       { domain: 'localhost:5678', accounts: [{ id: 'c' }] },
-      { domain: 'github.com', accounts: [{ id: 'd' }] }
+      { domain: 'github.com', accounts: [{ id: 'd' }] },
+      {
+        domain: 'pulseward',
+        accounts: [
+          { id: 'e', label: 'Port: 4180' },
+          { id: 'f', label: 'Port: 9090' }
+        ]
+      }
     ]
 
     const result = expandLocalDevPortEntries(entries)
@@ -207,6 +338,9 @@ describe('local development helpers', () => {
     expect(byDomain.get('localhost:8000')!.accounts.map((a: any) => a.id)).toEqual(['b'])
     // Public domains pass through untouched.
     expect(byDomain.get('github.com')!.accounts.map((a: any) => a.id)).toEqual(['d'])
+    // A self-hosted box splits by port the same way a dev machine does.
+    expect(byDomain.get('pulseward:4180')!.accounts.map((a: any) => a.id)).toEqual(['e'])
+    expect(byDomain.get('pulseward:9090')!.accounts.map((a: any) => a.id)).toEqual(['f'])
   })
 })
 

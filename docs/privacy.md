@@ -145,7 +145,12 @@ It is **never** written into plaintext `.json` exports.
    Google* fetches icons from `google.com/s2/favicons?domain=…`. The domain
    travels in the URL, so with this on, opening your vault tells Google which
    sites you have saved. With it off (the default) icons are generated locally
-   from the domain name.
+   from the domain name. A host on your own machine or your own network is
+   never sent either way: `localhost:3000`, `192.168.1.50:8123`, `pulseward`,
+   `nas.local` and `jira.corp.internal` resolve nowhere outside your network, so
+   the request would return nothing and describe a network no one outside it can
+   see. Those entries always get a local icon.
+   (`src/core/utils/domain.ts`, `hostKind`.)
 2. **Cloud Sync — off by default.** Uses the browser's own sync transport
    (`chrome.storage.sync`), not a LoginLens server. Ciphertext only.
 3. **The uninstall page.** `chrome.runtime.setUninstallURL` registers
@@ -191,7 +196,10 @@ Every claim on this page is checkable in the source:
   You do not have to take that on trust — `tests/privacy-claims.test.ts` walks
   every file under `src/` and fails the build if any of those calls appear, if
   the favicon endpoint is reached from a second file, or if a name belonging to
-  an analytics vendor turns up anywhere.
+  an analytics vendor turns up anywhere. Which *hosts* that one `<img src>` may
+  name cannot be read off the source, so it is asserted at runtime instead:
+  `tests/components/favicon-image.test.tsx` renders the component with the
+  opt-in switched on and fails if a private host produces a request.
 - **Permissions**: the `manifest` block in `package.json`
 - **Crypto**: `src/core/utils/encryption.ts` and
   `src/core/utils/password-fingerprint.ts`

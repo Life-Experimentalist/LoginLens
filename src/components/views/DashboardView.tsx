@@ -569,7 +569,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       ) : (
         <>
-          {/* Local Environments Section */}
+          {/* Local & private-network section: a dev server on this machine
+              and a self-hosted service on the LAN behave the same way here.
+              Neither has a public root domain, both keep their port, and
+              neither is ever looked up remotely. */}
           {(() => {
             const localAccounts = filteredAccounts.filter((d) =>
               isLocalEnvironment(d.domain)
@@ -582,7 +585,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <div className="flex items-center gap-2">
                     <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
                       <Globe className="text-emerald-500" size={20} />
-                      Local Development Environments
+                      Local & Network Services
                     </h2>
                     <span className="bg-emerald-500/10 text-emerald-500 text-xs px-2.5 py-0.5 rounded-full font-bold">
                       {localAccounts.length}

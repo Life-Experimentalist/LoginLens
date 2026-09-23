@@ -77,6 +77,24 @@ describe('parseEdgePasswordsCSV', () => {
     expect(validDomains.map((d) => d.domain)).toEqual(['github.com'])
   })
 
+  it('keeps the port on a self-hosted URL, so one box is not one entry', async () => {
+    // A homelab box runs a dozen services on one hostname. Dropping the port
+    // collapsed them into a single card named `pulseward`, where the second
+    // import overwrote the first one's account.
+    const { validDomains } = await parseEdgePasswordsCSV(
+      [
+        'name,url,username,password,note',
+        'Pulseward,https://pulseward:4180/,admin@example.com,hunter2,',
+        'Grafana,https://pulseward:9090/,admin@example.com,correcthorse,'
+      ].join('\n')
+    )
+
+    expect(validDomains.map((d) => d.domain).sort()).toEqual([
+      'pulseward:4180',
+      'pulseward:9090'
+    ])
+  })
+
   it('never keeps the password itself, only a fingerprint', async () => {
     const { validDomains } = await parseEdgePasswordsCSV(CHROME_EDGE_CSV)
     const serialized = JSON.stringify(validDomains)

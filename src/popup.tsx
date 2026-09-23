@@ -20,6 +20,7 @@ import {
 import iconUrl from 'url:~/assets/ui/icon.png'
 import type { DomainEntry, PendingOAuthCapture } from './core/storage/schema'
 import {
+  extractDomain,
   matchesDomain,
   getRootDomain,
   isAppPackageDomain,
@@ -142,8 +143,14 @@ function PopupContent() {
       if (isSpecial !== 'none') return
 
       try {
-        const urlObj = new URL(activeTab.url)
-        const host = urlObj.hostname.replace(/^www\./, '').toLowerCase()
+        // Parsed for its own sake: an unparseable URL must land in the catch
+        // below rather than becoming a domain nothing will match.
+        new URL(activeTab.url)
+        // The fallback when the background does not answer, and it feeds
+        // matchesDomain below, so it has to be the same derivation the
+        // background uses. Stripping www. by hand dropped the port, which on a
+        // self-hosted box is the only thing telling two services apart.
+        const host = extractDomain(activeTab.url)
 
         safeSendMessage(
           { type: 'GET_TAB_OAUTH_CONTEXT', tabId: activeTab.id },

@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
-import { Terminal, Smartphone } from 'lucide-react'
+import { Terminal, Smartphone, Server } from 'lucide-react'
 import { useStorage } from '@plasmohq/storage/hook'
 import { extensionStorage } from '../../core/storage/config'
-import { isAppPackageDomain } from '../../core/utils/domain'
+import { hostKind, isAppPackageDomain } from '../../core/utils/domain'
 
 /**
  * Opt-in remote favicons. Default off, and it has to stay that way.
@@ -68,16 +68,21 @@ export const FaviconImage: React.FC<FaviconImageProps> = ({
     return <Monogram domain="?" size={size} className={className} />
   }
 
-  const isLocal =
-    cleanDomain.includes('localhost') ||
-    cleanDomain.includes('127.0.0.1') ||
-    /^\d{1,3}(\.\d{1,3}){3}$/.test(cleanDomain.split(':')[0])
+  // This check is the privacy boundary, not a styling choice, so it uses the
+  // shared classifier instead of a local approximation of it. The substring
+  // test that used to live here missed every name-addressed private host, so
+  // with remote favicons on, `pulseward` and `jira.internal.acme.com` were
+  // handed to Google: the shape of a network nobody outside it can see.
+  const kind = hostKind(cleanDomain)
 
   if (isAppPackageDomain(cleanDomain)) {
     return <Smartphone size={size} className={className || 'text-purple-500'} />
   }
-  if (isLocal) {
+  if (kind === 'loopback') {
     return <Terminal size={size} className={className || 'text-amber-500'} />
+  }
+  if (kind !== 'public') {
+    return <Server size={size} className={className || 'text-amber-500'} />
   }
 
   if (source === 'google' && !error) {

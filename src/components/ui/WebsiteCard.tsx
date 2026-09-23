@@ -2,7 +2,7 @@ import React from 'react'
 import { motion } from 'framer-motion'
 import { Key, Globe, ChevronRight, ExternalLink } from 'lucide-react'
 import type { DomainEntry } from '../../core/storage/schema'
-import { isAppPackageDomain } from '../../core/utils/domain'
+import { hostKind, isAppPackageDomain } from '../../core/utils/domain'
 import { AppNameDisplay } from './AppNameDisplay'
 import { FaviconImage } from './FaviconImage'
 
@@ -22,10 +22,15 @@ export const WebsiteCard: React.FC<WebsiteCardProps> = ({ data, onClick }) => {
     (a) => a.auto_pinned && !a.pinned
   ).length
 
-  const isLocal =
-    domain.includes('localhost') ||
-    domain.includes('127.0.0.1') ||
-    /^\d{1,3}(\.\d{1,3}){3}$/.test(domain.split(':')[0])
+  const kind = hostKind(domain)
+  const isLocal = kind !== 'public'
+  // A dev server or an appliance on an IP is usually plain HTTP; a service
+  // reached by name is usually behind a proxy that terminates TLS, which is
+  // the shape `https://pulseward:4180/` has.
+  const openUrl =
+    kind === 'loopback' || kind === 'private-ip'
+      ? `http://${domain}`
+      : `https://${domain}`
   const isApp =
     data.domain_type === 'app' ||
     (data.domain_type !== 'website' && isAppPackageDomain(domain))
@@ -69,7 +74,7 @@ export const WebsiteCard: React.FC<WebsiteCardProps> = ({ data, onClick }) => {
               )}
               {isLocal && (
                 <span className="text-[9px] uppercase tracking-wider font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded">
-                  Local Dev
+                  {kind === 'loopback' ? 'Local Dev' : 'Network'}
                 </span>
               )}
             </div>
@@ -78,7 +83,7 @@ export const WebsiteCard: React.FC<WebsiteCardProps> = ({ data, onClick }) => {
             </p>
           </div>
           <a
-            href={isLocal ? `http://${domain}` : `https://${domain}`}
+            href={openUrl}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
