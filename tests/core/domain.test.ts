@@ -113,6 +113,19 @@ describe('matchesDomain', () => {
     // rather than quietly widening what a saved entry answers for.
     expect(matchesDomain('example.com', 'example.com:8443')).toBe(false)
   })
+
+  it('keeps two ports apart under allowSubdomains too', () => {
+    // The popup calls this with the flag on, in both argument orders
+    // (src/popup.tsx), so cross-port isolation has to survive that branch as
+    // well. It compares `saved.endsWith('.' + effective)`, and a port lives on
+    // the wrong end of the string for that to fire, but the popup is where a
+    // leak would show up and nothing else pins it.
+    expect(matchesDomain('pulseward:4180', 'pulseward:9090', true)).toBe(false)
+    expect(matchesDomain('pulseward:9090', 'pulseward:4180', true)).toBe(false)
+    expect(matchesDomain('pulseward:4180', 'pulseward', true)).toBe(false)
+    // The migration match still applies with the flag on.
+    expect(matchesDomain('pulseward', 'pulseward:4180', true)).toBe(true)
+  })
 })
 
 describe('extractDomain', () => {
