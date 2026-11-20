@@ -40,7 +40,7 @@ sync unless you deliberately turn it on.
 
 **Not stored:** your passwords. LoginLens never asks for one, never reads one
 out of a form, and has nothing to leak if the vault file is read. The autofill
-overlay fills the username and puts a placeholder in the password field.
+overlay fills the username and leaves the password field alone.
 
 **Stored, locally:** which usernames you use where, which OAuth provider backs
 each login, which MFA method guards it, your notes and labels, and any API keys

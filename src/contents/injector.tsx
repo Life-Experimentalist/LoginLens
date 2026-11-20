@@ -4,6 +4,13 @@ import { useStorage } from '@plasmohq/storage/hook'
 import { extensionStorage } from '../core/storage/config'
 import { extractDomain, isHostOrSubdomainOf, matchesDomain } from '../core/utils/domain'
 import { safeSendMessage } from '../core/utils/runtime'
+import {
+  findLoginField,
+  findProviderButton,
+  isLoginField,
+  orderAccounts,
+  setNativeValue
+} from '../core/utils/login-fields'
 import cssText from 'data-text:~/style.css'
 import type { DomainEntry, IdentityProfile } from '../core/storage/schema'
 
@@ -31,33 +38,6 @@ export const getStyle: PlasmoGetStyle = () => {
 // this extension is installed at all, which the note below is about avoiding.
 export const createShadowRoot = (host: HTMLElement) =>
   host.attachShadow({ mode: 'closed' })
-
-/**
- * The one place that decides whether an input is part of a login. Used both to
- * detect that this frame has a form worth docking on, and to pick a target
- * when the user clicks Use without having focused anything.
- */
-const isLoginField = (input: HTMLInputElement): boolean => {
-  const type = input.type.toLowerCase()
-  if (type === 'password') return true
-  if (type !== 'text' && type !== 'email') return false
-  const name = input.name.toLowerCase()
-  const id = input.id.toLowerCase()
-  return (
-    name.includes('user') ||
-    name.includes('email') ||
-    name.includes('login') ||
-    id.includes('user') ||
-    id.includes('email')
-  )
-}
-
-const findLoginField = (root: Document): HTMLInputElement | null => {
-  const inputs = Array.from(
-    root.querySelectorAll('input')
-  ) as HTMLInputElement[]
-  return inputs.find((input) => isLoginField(input)) ?? null
-}
 
 const LoginLensOverlay = () => {
   const [savedAccounts] = useStorage<DomainEntry[]>(
@@ -255,51 +235,57 @@ const LoginLensOverlay = () => {
   if (!domainData || domainData.accounts.length === 0) return null
 
   const autofill = (acc: IdentityProfile) => {
+    // An OAuth login has no username to type. Writing the provider account's
+    // email into the site's own form was misleading, so point at the button
+    // that was used instead. Highlighted, never clicked: signing in is the
+    // user's act.
+    if (acc.login_method.type === 'oauth') {
+      const button = findProviderButton(
+        document,
+        acc.login_method.provider || ''
+      )
+      if (button) {
+        button.scrollIntoView({ block: 'center', behavior: 'smooth' })
+        const previous = button.style.outline
+        button.style.outline = '3px solid #6366f1'
+        button.focus({ preventScroll: true })
+        window.setTimeout(() => {
+          button.style.outline = previous
+        }, 3000)
+      }
+      return
+    }
+
     const username = acc.identities[0]
+    if (!username) return
 
     // The dock is up whether or not a field has focus, so pick one if the
     // user clicked Use without touching the form first.
-    const fallback = findLoginField(document)
-    const target = activeInput ?? (fallback
-      ? {
-          element: fallback,
-          isPassword: fallback.type.toLowerCase() === 'password',
-          rect: fallback.getBoundingClientRect()
-        }
-      : null)
-    if (!target) return
+    const field = activeInput?.element.isConnected
+      ? activeInput.element
+      : findLoginField(document)
+    if (!field) return
 
-    // Simulate setting value
-    const setInputValue = (input: HTMLInputElement, value: string) => {
-      input.value = value
-      input.dispatchEvent(new Event('input', { bubbles: true }))
-      input.dispatchEvent(new Event('change', { bubbles: true }))
-    }
+    const isPassword = field.type.toLowerCase() === 'password'
+    const scope = field.closest('form') ?? document
+    const userField = isPassword
+      ? (Array.from(
+          scope.querySelectorAll('input')
+        ) as HTMLInputElement[]).find(
+          (el) => el !== field && el.type !== 'password' && isLoginField(el)
+        )
+      : field
 
-    if (target.isPassword) {
-      // Find the preceding username field to fill if possible
-      setInputValue(target.element, '********') // We don't store passwords yet per schema, so mockup
-      const form = target.element.closest('form')
-      if (form) {
-        const textInputs = Array.from(
-          form.querySelectorAll('input[type="text"], input[type="email"]')
-        ) as HTMLInputElement[]
-        if (textInputs.length > 0) {
-          setInputValue(textInputs[0], username)
-        }
-      }
-    } else {
-      setInputValue(target.element, username)
-      // Try to find a password field in the same form
-      const form = target.element.closest('form')
-      if (form) {
-        const passInput = form.querySelector(
-          'input[type="password"]'
-        ) as HTMLInputElement
-        if (passInput) {
-          setInputValue(passInput, '********') // Mock password fill
-        }
-      }
+    if (userField) setNativeValue(userField, username)
+
+    // Passwords are never stored (see SECURITY.md), so there is nothing to
+    // fill. Leave the password box alone: the browser's own manager can fill
+    // it, and anything the user already typed there stays.
+    if (userField) {
+      const passwordField = scope.querySelector(
+        'input[type="password"]'
+      ) as HTMLInputElement | null
+      passwordField?.focus({ preventScroll: true })
     }
 
     setActiveInput(null)
@@ -358,7 +344,7 @@ const LoginLensOverlay = () => {
         </span>
       </div>
       <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
-        {domainData.accounts.map((acc, idx) => (
+        {orderAccounts(domainData.accounts).map((acc, idx) => (
           <div
             key={idx}
             className="flex justify-between items-center bg-muted/50 p-2 rounded-lg border border-border/50 hover:border-primary/50 transition-colors cursor-pointer group"
@@ -424,7 +410,7 @@ const LoginLensOverlay = () => {
               }}
               className="px-3 py-1.5 bg-background border border-border text-foreground rounded-md font-medium group-hover:bg-primary group-hover:text-primary-foreground group-hover:border-primary transition-colors text-xs"
             >
-              Use
+              {acc.login_method.type === 'oauth' ? 'Show' : 'Use'}
             </button>
           </div>
         ))}

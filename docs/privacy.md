@@ -25,8 +25,9 @@ whether it was a password login or an OAuth provider, and which MFA method
 guards it. The password itself is never asked for, never captured from a form,
 and never written to storage.
 
-The autofill overlay fills the username field and writes a `********`
-placeholder into the password field; it has nothing real to put there.
+The autofill overlay fills the username field and leaves the password field
+alone, so your browser's own manager can fill it and anything you already typed
+stays. For an OAuth login it highlights the matching sign-in button instead.
 
 The one class of secret LoginLens *does* store is **API keys**, and only ones
 you paste in yourself. They live in `chrome.storage.local` in plaintext, like

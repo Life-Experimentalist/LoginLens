@@ -40,8 +40,13 @@ rather than a diff against an earlier version.
   offline, which a bare hash of a human password can.
 - The same keyed scheme flags passwords from a small list of ones that are
   broken on sight.
-- The autofill overlay fills the username and writes a placeholder into the
-  password field. It has nothing real to put there.
+- The autofill overlay fills the username and leaves the password field alone,
+  so your browser's own manager can fill it and nothing you typed is
+  overwritten. For an OAuth login it highlights the matching "Continue with"
+  button instead of typing an email into the form.
+- The overlay lists accounts pinned first, then the most recently edited, finds
+  login fields by their `autocomplete` hint as well as their name, ignores
+  hidden inputs, and fills fields in a way React-controlled forms accept.
 
 ### Capturing sign-ins
 
