@@ -343,6 +343,14 @@ const LoginLensOverlay = () => {
           </button>
         </span>
       </div>
+      {/* Which saved site matched. Matching is by root domain, so on a
+          subdomain this is the entry the accounts actually live under. */}
+      <p
+        className="text-[10px] text-muted-foreground -mt-1 mb-2 truncate"
+        title={domainData.domain}
+      >
+        Saved for {domainData.domain}
+      </p>
       <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
         {orderAccounts(domainData.accounts).map((acc, idx) => (
           <div
@@ -402,6 +410,18 @@ const LoginLensOverlay = () => {
                   ? `VIA ${acc.login_method.provider}`
                   : acc.label || 'LOCAL'}
               </p>
+              {/* Where the secret lives, so the dock answers "which one, and
+                  where do I find it" without opening the vault. */}
+              {(acc.login_method.vault_location || acc.vault_source) && (
+                <p
+                  className="text-[10px] text-muted-foreground truncate mt-0.5"
+                  title={acc.login_method.vault_location || acc.vault_source}
+                >
+                  {acc.login_method.vault_location
+                    ? `Kept in ${acc.login_method.vault_location}`
+                    : `From ${acc.vault_source}`}
+                </p>
+              )}
             </div>
             <button
               onClick={(e) => {

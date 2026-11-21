@@ -15,7 +15,8 @@ import {
   Lock,
   Smartphone,
   Globe,
-  Plus
+  Plus,
+  X
 } from 'lucide-react'
 import iconUrl from 'url:~/assets/ui/icon.png'
 import type { DomainEntry, PendingOAuthCapture } from './core/storage/schema'
@@ -33,6 +34,11 @@ import {
   type RecentOrder
 } from './core/utils/recent-domains'
 import { safeSendMessage } from './core/utils/runtime'
+import { orderAccounts } from './core/utils/login-fields'
+import {
+  approveCapture,
+  reviewableCaptures
+} from './core/utils/oauth-capture'
 import { ErrorBoundary } from './components/ui/ErrorBoundary'
 import '~/style.css'
 
@@ -124,8 +130,11 @@ function PopupContent() {
     { key: 'always_record_oauth', instance: extensionStorage },
     false
   )
-  const [pendingCaptures] = useStorage<PendingOAuthCapture[]>(
-    { key: 'pending_oauth_captures', instance: extensionStorage },
+  const [pendingCaptures, setPendingCaptures] = useStorage<
+    PendingOAuthCapture[]
+  >({ key: 'pending_oauth_captures', instance: extensionStorage }, [])
+  const [oauthRegistry, setOauthRegistry] = useStorage<any[]>(
+    { key: 'oauth_registry', instance: extensionStorage },
     []
   )
   const [specialPage, setSpecialPage] = useState<SpecialPageType>('none')
@@ -223,6 +232,28 @@ function PopupContent() {
       : ''
     chrome.tabs.create({ url: `./tabs/vault.html#dashboard${suffix}` })
   }
+
+  // Same rules the vault uses, so the count here matches what is there.
+  const reviewable = reviewableCaptures(pendingCaptures)
+
+  const confirmCapture = (capture: PendingOAuthCapture) => {
+    const result = approveCapture(
+      savedAccounts,
+      oauthRegistry,
+      pendingCaptures,
+      capture,
+      capture.suggested_domain,
+      Date.now(),
+      crypto.randomUUID()
+    )
+    if (!result.changed) return
+    setSavedAccounts(result.savedAccounts)
+    setOauthRegistry(result.oauthRegistry)
+    setPendingCaptures(result.pending)
+  }
+
+  const dismissCapture = (id: string) =>
+    setPendingCaptures((pendingCaptures ?? []).filter((p) => p.id !== id))
 
   const handleLinkMirrorDomain = (targetDomain: string, newMirrorDomain: string) => {
     if (!savedAccounts) return
@@ -330,7 +361,7 @@ function PopupContent() {
           {domainMap.accounts.length}
         </span>
       </div>
-      {domainMap.accounts.map((acc) => (
+      {orderAccounts(domainMap.accounts).map((acc) => (
         <div
           key={acc.id}
           className="flex items-center justify-between p-2 rounded bg-muted/30 text-xs border border-border/50"
@@ -538,23 +569,54 @@ function PopupContent() {
           </div>
         )}
 
-        {/* Pending Alerts */}
-        {pendingCaptures && pendingCaptures.length > 0 && (
-          <div
-            className="mb-3 p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-xs flex items-start gap-2 cursor-pointer hover:bg-indigo-500/20 transition-colors"
-            onClick={openVault}
-          >
-            <Shield size={14} className="text-indigo-500 shrink-0 mt-0.5" />
-            <div className="min-w-0 flex-1">
-              <span className="font-semibold text-indigo-600 dark:text-indigo-400 block mb-0.5">
-                {pendingCaptures.length} Pending Capture
-                {pendingCaptures.length !== 1 ? 's' : ''}
-              </span>
-              <span className="text-muted-foreground text-[10px]">
-                Click to review in vault
-              </span>
-            </div>
-            <ArrowRight size={12} className="text-indigo-500/50 mt-1" />
+        {/* Pending captures: confirm or dismiss here, without a trip to the
+            vault. Only the ones the vault would also list are shown. */}
+        {reviewable.length > 0 && (
+          <div className="mb-3 p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/30 text-xs space-y-2">
+            <span className="font-semibold text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+              <Shield size={13} />
+              {reviewable.length} sign-in
+              {reviewable.length !== 1 ? 's' : ''} to confirm
+            </span>
+            {reviewable.slice(0, 2).map((c) => (
+              <div
+                key={c.id}
+                className="flex items-center gap-2 p-1.5 rounded bg-background/70 border border-border"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium text-foreground">
+                    {c.suggested_domain}
+                  </p>
+                  <p className="truncate text-[10px] text-muted-foreground">
+                    {c.identity} via {c.provider}
+                  </p>
+                </div>
+                <button
+                  onClick={() => confirmCapture(c)}
+                  className="px-2 py-1 rounded bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-semibold flex items-center gap-1"
+                  title={`Save ${c.identity} for ${c.suggested_domain}`}
+                >
+                  <Check size={11} /> Save
+                </button>
+                <button
+                  onClick={() => dismissCapture(c.id)}
+                  className="p-1 rounded hover:bg-muted text-muted-foreground"
+                  title="Dismiss"
+                  aria-label={`Dismiss ${c.suggested_domain}`}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+            {reviewable.length > 2 && (
+              <button
+                onClick={openVault}
+                className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+              >
+                Review {reviewable.length - 2} more in the vault
+                <ArrowRight size={10} />
+              </button>
+            )}
           </div>
         )}
 
@@ -584,6 +646,7 @@ function PopupContent() {
           <input
             type="text"
             placeholder="Search saved logins..."
+            autoFocus
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-8 pr-3 py-1.5 text-xs bg-muted/50 border border-border rounded-lg focus:outline-none focus:border-primary text-foreground placeholder:text-muted-foreground transition-colors"

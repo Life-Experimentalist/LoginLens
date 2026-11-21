@@ -3,10 +3,12 @@ import { useStorage } from '@plasmohq/storage/hook'
 import { extensionStorage } from '../../core/storage/config'
 import type {
   PendingOAuthCapture,
-  DomainEntry,
-  IdentityProfile
+  DomainEntry
 } from '../../core/storage/schema'
-import { isNonOriginDomain } from '../../core/utils/domain'
+import {
+  approveCapture,
+  reviewableCaptures
+} from '../../core/utils/oauth-capture'
 import { Clock, Globe, Check, X, Trash2, ShieldCheck } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -27,13 +29,7 @@ export const PendingCapturesSection: React.FC<PendingCapturesSectionProps> = ({
     PendingOAuthCapture[]
   >({ key: 'pending_oauth_captures', instance: extensionStorage }, [])
 
-  const validCaptures = (pendingCaptures || []).filter(
-    (c) =>
-      c.identity &&
-      c.identity !== 'Unknown Account' &&
-      c.identity.includes('@') &&
-      !isNonOriginDomain(c.suggested_domain)
-  )
+  const validCaptures = reviewableCaptures(pendingCaptures)
 
   if (validCaptures.length === 0) return null
 
@@ -42,70 +38,24 @@ export const PendingCapturesSection: React.FC<PendingCapturesSectionProps> = ({
     rawFinalDomain: string,
     overridePurpose?: 'login' | 'integration'
   ) => {
-    // 1. Sanitize domain name
-    const cleanDomain = rawFinalDomain
-      .toLowerCase()
-      .trim()
-      .replace(/^https?:\/\//, '')
-      .replace(/^www\./, '')
-      .split('/')[0]
-
-    if (!cleanDomain || isNonOriginDomain(cleanDomain)) return
-
-    const updated = [...(savedAccounts || [])]
-    const existingIdx = updated.findIndex((d) => d.domain === cleanDomain)
-    const effectivePurpose = overridePurpose || capture.oauth_purpose || 'login'
-
-    const profile: IdentityProfile = {
-      id:
-        typeof crypto !== 'undefined' && crypto.randomUUID
-          ? crypto.randomUUID()
-          : Math.random().toString(36).substring(2),
-      label: effectivePurpose === 'integration' 
-        ? `${capture.provider.split('.')[0].charAt(0).toUpperCase() + capture.provider.split('.')[0].slice(1)} Data Link`
-        : `${capture.provider.split('.')[0].charAt(0).toUpperCase() + capture.provider.split('.')[0].slice(1)} OAuth`,
-      identities: [capture.identity],
-      login_method: { type: 'oauth', provider: capture.provider },
-      oauth_purpose: effectivePurpose,
-      integration_scope: capture.integration_scope,
-      updated_at: Date.now(),
-      notes: effectivePurpose === 'integration'
-        ? `Connected data source for ${capture.integration_scope || 'Autofill / Scope access'}`
-        : 'Recorded during OAuth login'
-    }
-
-    if (existingIdx >= 0) {
-      const already = updated[existingIdx].accounts.some(
-        (a) =>
-          a.login_method.type === 'oauth' &&
-          a.login_method.provider === capture.provider &&
-          a.identities[0] === capture.identity
-      )
-      if (!already) {
-        updated[existingIdx].accounts.push(profile)
-      }
-    } else {
-      updated.push({ domain: cleanDomain, accounts: [profile] })
-    }
-    setSavedAccounts(updated)
-
-    // 2. Add to linked_websites in global registry
-    const newReg = [...(oauthRegistry || [])]
-    const regEntry = newReg.find(
-      (r) => r.provider === capture.provider && r.identity === capture.identity
+    const result = approveCapture(
+      savedAccounts,
+      oauthRegistry,
+      pendingCaptures,
+      capture,
+      rawFinalDomain,
+      Date.now(),
+      typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : Math.random().toString(36).substring(2),
+      overridePurpose
     )
-    if (regEntry) {
-      regEntry.linked_websites = regEntry.linked_websites || []
-      if (!regEntry.linked_websites.includes(cleanDomain)) {
-        regEntry.linked_websites.push(cleanDomain)
-      }
-      setOauthRegistry(newReg)
-    }
-
-    // 3. Remove from pending queue
-    if (pendingCaptures) {
-      setPendingCaptures(pendingCaptures.filter((p) => p.id !== capture.id))
-    }
+    // Nothing changed means the domain was not a real origin; keep the
+    // capture queued so the user can correct it.
+    if (!result.changed) return
+    setSavedAccounts(result.savedAccounts)
+    setOauthRegistry(result.oauthRegistry)
+    setPendingCaptures(result.pending)
   }
 
   const handleRejectPending = (id: string) => {
