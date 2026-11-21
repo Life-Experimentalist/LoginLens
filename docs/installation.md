@@ -73,6 +73,20 @@ See [Multi-Browser Support](./browsers.md) for per-browser notes.
 
 ---
 
+## A stable extension ID for development
+
+An unpacked extension gets its ID from the folder it was loaded from, so moving
+the folder or loading it from a new path gives a new ID, and a new ID cannot see
+the old vault. `.env.development` carries a public key that `package.json` puts
+in the manifest as `key`, which pins the ID to `chmggdibjbkbdfjdjelemacfackobmip`
+for `npm run dev` builds. Store builds do not read that file, so they get no
+`key` and the stores assign their own ID.
+
+The first time you load a dev build with the pinned ID it is a new ID, so the
+vault does not follow on its own. Run `npm run vault:backup` before, then
+`node scripts/vault-restore.mjs --to chmggdibjbkbdfjdjelemacfackobmip` with the
+browser closed. After that, reloading or moving the folder keeps the data.
+
 ## First Time Setup
 
 After successfully loading the extension:

@@ -119,6 +119,12 @@ rather than a diff against an earlier version.
 - The OAuth registry is capped at 500 entries so a hostile page cannot fill the
   storage quota.
 
+### Development
+
+- Dev builds carry a pinned extension key, so the ID no longer changes when the
+  unpacked folder moves. Store builds are unaffected. See
+  [docs/installation.md](docs/installation.md).
+
 ### Platforms
 
 Builds for Chrome, Edge, Brave, Opera, Firefox (MV3 and MV2) and Safari from a
