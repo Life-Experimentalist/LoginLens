@@ -89,6 +89,11 @@ Two content scripts run on `http://*/*` and `https://*/*`:
   does not send anything anywhere.
 - **The OAuth scraper** reads signed-in identities out of the page. It does
   nothing at all unless one of the two recording switches is on.
+- **Sign-in and sign-up capture** notices a form with a password box being
+  submitted and queues the username for your confirmation, filed under the
+  site of the tab it happened in. It only checks that the password box is not
+  empty. The password is not read, sent or stored. It follows the same two
+  recording switches as OAuth capture.
 
 Manual recording (`Record OAuth Login` in the popup) is the mode that reads the
 most, so it is bounded and visible:

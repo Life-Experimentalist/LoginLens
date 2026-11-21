@@ -56,6 +56,9 @@ Full detail — every storage key, every encryption boundary — is in
   chain, then queues them for one-click confirmation rather than saving anything
   behind your back. It is off until you turn it on, and manual recording stops
   itself after 15 minutes.
+- **Sign-in and sign-up capture** — while recording is on, submitting a login or
+  registration form queues the username and site for confirmation. The password
+  is never read.
 - **Password reuse detection without passwords** — reuse is inferred from
   HMAC-SHA256 fingerprints computed under a random 256-bit key generated on your
   device. Equal passwords produce equal fingerprints; without the key a

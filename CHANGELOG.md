@@ -119,6 +119,11 @@ rather than a diff against an earlier version.
 - The OAuth registry is capped at 500 entries so a hostile page cannot fill the
   storage quota.
 
+- **Sign-in and sign-up capture.** While a recording switch is on, submitting a
+  form with a password box queues the username and the site for one-click
+  confirmation, marked as a sign-in or a sign-up. The password box is only
+  checked for being non-empty.
+
 ### Development
 
 - Dev builds carry a pinned extension key, so the ID no longer changes when the

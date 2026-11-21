@@ -588,7 +588,9 @@ function PopupContent() {
                     {c.suggested_domain}
                   </p>
                   <p className="truncate text-[10px] text-muted-foreground">
-                    {c.identity} via {c.provider}
+                    {c.method === 'password'
+                      ? `${c.identity} (${c.signup ? 'sign-up' : 'sign-in'})`
+                      : `${c.identity} via ${c.provider}`}
                   </p>
                 </div>
                 <button

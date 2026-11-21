@@ -102,3 +102,33 @@ describe('approveCapture', () => {
     expect(out.pending).toEqual(queue)
   })
 })
+
+describe('password captures', () => {
+  const pw = (over: object = {}) =>
+    cap({ method: 'password', provider: '', identity: 'krishna', suggested_domain: 'accounts.google.com', ...over })
+
+  it('is reviewable without an @ and on a provider domain', () => {
+    expect(reviewableCaptures([pw()]).map((c) => c.id)).toEqual(['c1'])
+  })
+
+  it('saves a password profile and leaves the registry alone', () => {
+    const registry = [{ provider: 'google.com', identity: 'krishna', linked_websites: [] }]
+    const out = approveCapture([], registry, [pw()], pw(), 'accounts.google.com', 5, 'id1')
+    expect(out.changed).toBe(true)
+    expect(out.savedAccounts[0].accounts[0]).toMatchObject({
+      label: 'Password login',
+      identities: ['krishna'],
+      login_method: { type: 'password' }
+    })
+    expect(out.oauthRegistry).toBe(registry)
+    expect(out.pending).toEqual([])
+  })
+
+  it('labels a sign-up and does not duplicate a known username', () => {
+    const existing = [{ domain: 'a.com', accounts: [{ id: 'o', identities: ['Krishna'], login_method: { type: 'password' } } as any] }]
+    const out = approveCapture(existing, [], [pw()], pw({ signup: true }), 'a.com', 5, 'id1')
+    expect(out.savedAccounts[0].accounts).toHaveLength(1)
+    const fresh = approveCapture([], [], [pw()], pw({ signup: true }), 'a.com', 5, 'id1')
+    expect(fresh.savedAccounts[0].accounts[0].label).toBe('Password sign-up')
+  })
+})

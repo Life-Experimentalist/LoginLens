@@ -150,6 +150,12 @@ export interface PendingOAuthCapture {
   suggested_domain: string
   oauth_purpose?: 'login' | 'integration'
   integration_scope?: string
+  /**
+   * Set for a sign-in or sign-up seen on a page rather than an OAuth flow.
+   * `provider` is empty then and `identity` is the username that was typed.
+   */
+  method?: 'password'
+  signup?: boolean
   timestamp: number
 }
 

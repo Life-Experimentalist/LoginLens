@@ -256,7 +256,8 @@ async function deleteTabState(tabId: number): Promise<void> {
   }
 }
 
-import { isLocalEnvironment, isNonOriginDomain } from '~/core/utils/domain'
+import { extractDomain, isLocalEnvironment, isNonOriginDomain } from '~/core/utils/domain'
+import { isReviewableCapture } from '~/core/utils/oauth-capture'
 
 function getHostname(url: string): string | null {
   try {
@@ -485,13 +486,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, _tab) => {
           const pending = Array.isArray(rawPending) ? rawPending : []
 
           // Purge stale Unknown Account or non-origin items
-          const cleanedPending = pending.filter(
-            (p) =>
-              p.identity &&
-              p.identity !== 'Unknown Account' &&
-              p.identity.includes('@') &&
-              !isNonOriginDomain(p.suggested_domain)
-          )
+          const cleanedPending = pending.filter(isReviewableCapture)
 
           const pendingExists = cleanedPending.find(
             (p) =>
@@ -688,6 +683,66 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       })
     }
     // Fire-and-forget: nothing is sent back, so the channel must not be held.
+    return false
+  }
+
+  if (message.type === 'CAPTURE_LOGIN') {
+    // The site comes from the sending tab, never from the message, so a page
+    // cannot file a username under a domain it does not control.
+    const tabUrl = sender.tab?.url
+    const username =
+      typeof message.username === 'string' ? message.username.trim() : ''
+    if (!tabUrl || !username || username.length > 254) return false
+    const domain = extractDomain(tabUrl)
+    if (!domain) return false
+    void (async () => {
+      try {
+        // Same switches as OAuth capture: nothing is recorded unless the user
+        // turned recording on.
+        const [manual, always] = await Promise.all([
+          nativeStorage.get<boolean>('is_recording_oauth'),
+          nativeStorage.get<boolean>('always_record_oauth')
+        ])
+        if (!manual && !always) return
+
+        const rawSaved = await nativeStorage.get<DomainEntry[]>('saved_accounts')
+        const known = (Array.isArray(rawSaved) ? rawSaved : []).some(
+          (d) =>
+            d.domain === domain &&
+            d.accounts.some((a) =>
+              a.identities.some((i) => i.toLowerCase() === username.toLowerCase())
+            )
+        )
+        if (known) return
+
+        const rawPending = await nativeStorage.get<PendingOAuthCapture[]>(
+          'pending_oauth_captures'
+        )
+        const pending = (Array.isArray(rawPending) ? rawPending : []).filter(
+          isReviewableCapture
+        )
+        const dup = pending.some(
+          (p) =>
+            p.method === 'password' &&
+            p.suggested_domain === domain &&
+            p.identity.toLowerCase() === username.toLowerCase()
+        )
+        if (dup || pending.length >= 100) return
+
+        pending.push({
+          id: crypto.randomUUID(),
+          provider: '',
+          identity: username,
+          suggested_domain: domain,
+          method: 'password',
+          signup: message.signup === true,
+          timestamp: Date.now()
+        })
+        await nativeStorage.set('pending_oauth_captures', pending)
+      } catch (err) {
+        log.warn(`Login capture failed: ${String(err)}`)
+      }
+    })()
     return false
   }
 

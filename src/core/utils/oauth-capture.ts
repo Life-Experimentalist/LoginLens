@@ -11,8 +11,13 @@ import { isNonOriginDomain } from './domain'
  * ones it could not act on, so "3 pending" could lead to an empty section.
  */
 
+export const isPasswordCapture = (c: PendingOAuthCapture): boolean =>
+  c.method === 'password'
+
 export const isReviewableCapture = (c: PendingOAuthCapture): boolean =>
-  Boolean(
+  isPasswordCapture(c)
+    ? Boolean(c.identity && c.identity.length <= 254 && c.suggested_domain)
+    : Boolean(
     c.identity &&
       c.identity !== 'Unknown Account' &&
       c.identity.includes('@') &&
@@ -63,13 +68,17 @@ export function approveCapture(
   const registry = oauthRegistry ?? []
   const queue = pending ?? []
   const domain = cleanCaptureDomain(rawDomain)
-  if (!domain || isNonOriginDomain(domain)) {
+  if (!domain || (!isPasswordCapture(capture) && isNonOriginDomain(domain))) {
     return {
       savedAccounts: saved,
       oauthRegistry: registry,
       pending: queue,
       changed: false
     }
+  }
+
+  if (isPasswordCapture(capture)) {
+    return approvePasswordCapture(saved, registry, queue, capture, domain, now, newId)
   }
 
   const purpose = overridePurpose || capture.oauth_purpose || 'login'
@@ -117,6 +126,47 @@ export function approveCapture(
   return {
     savedAccounts: nextSaved,
     oauthRegistry: nextRegistry,
+    pending: queue.filter((p) => p.id !== capture.id),
+    changed: true
+  }
+}
+
+function approvePasswordCapture(
+  saved: DomainEntry[],
+  registry: any[],
+  queue: PendingOAuthCapture[],
+  capture: PendingOAuthCapture,
+  domain: string,
+  now: number,
+  newId: string
+): ApproveResult {
+  const profile: IdentityProfile = {
+    id: newId,
+    label: capture.signup ? 'Password sign-up' : 'Password login',
+    identities: [capture.identity],
+    login_method: { type: 'password' },
+    updated_at: now,
+    notes: capture.signup
+      ? 'Recorded when you registered. The password was not read.'
+      : 'Recorded when you signed in. The password was not read.'
+  }
+  const existing = saved.find((d) => d.domain === domain)
+  const already = existing?.accounts.some(
+    (a) =>
+      a.login_method.type === 'password' &&
+      a.identities.some((i) => i.toLowerCase() === capture.identity.toLowerCase())
+  )
+  let nextSaved: DomainEntry[]
+  if (existing) {
+    nextSaved = already
+      ? saved
+      : saved.map((d) => (d === existing ? { ...d, accounts: [...d.accounts, profile] } : d))
+  } else {
+    nextSaved = [...saved, { domain, accounts: [profile] }]
+  }
+  return {
+    savedAccounts: nextSaved,
+    oauthRegistry: registry,
     pending: queue.filter((p) => p.id !== capture.id),
     changed: true
   }

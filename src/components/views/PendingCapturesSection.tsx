@@ -104,7 +104,11 @@ export const PendingCapturesSection: React.FC<PendingCapturesSectionProps> = ({
                       <ShieldCheck size={16} className="text-amber-500" />
                       {capture.identity}
                     </p>
-                    {capture.oauth_purpose === 'integration' ? (
+                    {capture.method === 'password' ? (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-500 border border-sky-500/20 font-semibold">
+                        {capture.signup ? 'Sign-up' : 'Password sign-in'}
+                      </span>
+                    ) : capture.oauth_purpose === 'integration' ? (
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 font-semibold flex items-center gap-1">
                         🔌 Connected Data Link
                       </span>
@@ -115,10 +119,19 @@ export const PendingCapturesSection: React.FC<PendingCapturesSectionProps> = ({
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-                    <Globe size={12} /> via{' '}
-                    <span className="font-medium text-foreground">
-                      {capture.provider}
-                    </span>
+                    <Globe size={12} />{' '}
+                    {capture.method === 'password' ? (
+                      <span className="font-medium text-foreground">
+                        Seen on {capture.suggested_domain}. The password was not read.
+                      </span>
+                    ) : (
+                      <>
+                        via{' '}
+                        <span className="font-medium text-foreground">
+                          {capture.provider}
+                        </span>
+                      </>
+                    )}
                     {capture.integration_scope && (
                       <span className="text-muted-foreground/80 italic ml-1">
                         ({capture.integration_scope})
@@ -127,7 +140,11 @@ export const PendingCapturesSection: React.FC<PendingCapturesSectionProps> = ({
                   </p>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="flex flex-col">
+                  <div
+                    className={
+                      capture.method === 'password' ? 'hidden' : 'flex flex-col'
+                    }
+                  >
                     <label className="text-[10px] text-muted-foreground font-semibold uppercase mb-1">
                       Classification
                     </label>
