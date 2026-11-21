@@ -340,6 +340,10 @@ function readBooleanChange(
 
 function setupStorageListener() {
   chrome.storage.onChanged.addListener((changes, area) => {
+    // After the extension reloads, tabs that were already open keep this
+    // script alive with no extension behind it. chrome.runtime.id goes away
+    // then, and touching storage would throw "Extension context invalidated".
+    if (!chrome.runtime?.id) return
     // Plasmo uses 'local' area by default
     if (area !== 'local' && area !== 'session') return
 
